@@ -15,7 +15,9 @@
           "mode": "Tracking mode",
           "logic": "Combine conditions (and/or)",
           "condition_entities": "Additional entities (optional)",
-          "excluded": "Excluded apps (optional)"
+          "excluded": "Excluded apps (optional)",
+          "aliases": "Application aliases (optional, id:12=Netflix)",
+          "app_sensors": "Optional app sensors (comma-separated names or id: identifiers)"
         }
       },
       "condition": {
@@ -43,7 +45,9 @@
           "mode": "Tracking mode",
           "logic": "Combine conditions (and/or)",
           "condition_entities": "Additional entities (optional)",
-          "excluded": "Excluded apps (optional)"
+          "excluded": "Excluded apps (optional)",
+          "aliases": "Application aliases (optional, id:12=Netflix)",
+          "app_sensors": "Optional app sensors (comma-separated names or id: identifiers)"
         }
       },
       "condition": {

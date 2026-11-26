@@ -31,6 +31,7 @@ class Tracker:
         self.unsubs.append(async_track_time_interval(self.hass, self.tick, timedelta(seconds=30)))
         self.unsubs.append(self.hass.bus.async_listen("entity_registry_updated", self.registry_changed))
         self.refresh()
+        self.store.async_delay_save(self.engine.storage, 1)
 
     @callback
     def watch(self):
@@ -63,6 +64,14 @@ class Tracker:
         allowed = not results or (all(results) if self.config.get("logic") != "or" else any(results))
         excluded = {s.strip().casefold() for s in self.config.get("excluded", "").split(",") if s.strip()}
         self.engine.transition(now, self.source_state, attributes, allowed, self.config.get("mode", "playing"), excluded)
+        aliases = {}
+        for item in self.config.get("aliases", "").split(","):
+            key, sep, label = item.partition("=")
+            if sep and key.strip() and label.strip():
+                aliases[key.strip().casefold()] = label.strip()
+        for key, name in list(self.engine.data["apps"].items()):
+            self.engine.data["apps"][key] = aliases.get(key.casefold(), aliases.get(name.casefold(), name))
+        self.current_app = aliases.get(app_identity(attributes)[0].casefold(), aliases.get(self.current_app.casefold(), self.current_app))
         self.reason = "tracking" if self.engine.active else "condition_not_met" if not allowed else "source_not_active"
         self.notify()
 
@@ -70,10 +79,10 @@ class Tracker:
     def tick(self, now):
         self.refresh()
         self.engine.prune(now)
+        self.store.async_delay_save(self.engine.storage, 1)
 
     @callback
     def notify(self):
-        self.store.async_delay_save(self.engine.storage, 5)
         async_dispatcher_send(self.hass, self.signal)
 
     @callback

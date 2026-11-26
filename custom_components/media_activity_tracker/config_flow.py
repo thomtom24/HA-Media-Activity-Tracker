@@ -14,7 +14,13 @@ def entity_ref(hass, entity_id):
 
 def resolve(hass, ref):
     registry = er.async_get(hass)
-    return er.async_get_entity_id(hass, ref) or ref
+    if "." in ref:
+        return ref
+    # Registry IDs remain stable across entity renames.
+    for entry in registry.entities.values():
+        if entry.id == ref:
+            return entry.entity_id
+    return f"sensor.media_activity_missing_{ref}"
 
 
 def choice(values):
@@ -37,6 +43,8 @@ class Settings:
             vol.Required("logic", default=defaults.get("logic", "and")): choice(["and", "or"]),
             vol.Optional("condition_entities", default=[resolve(self.hass, c["entity"]) for c in old]): selector.EntitySelector(selector.EntitySelectorConfig(multiple=True)),
             vol.Optional("excluded", default=defaults.get("excluded", "")): selector.TextSelector(),
+            vol.Optional("aliases", default=defaults.get("aliases", "")): selector.TextSelector(),
+            vol.Optional("app_sensors", default=defaults.get("app_sensors", "")): selector.TextSelector(),
         }))
 
     async def async_step_condition(self, user_input=None):

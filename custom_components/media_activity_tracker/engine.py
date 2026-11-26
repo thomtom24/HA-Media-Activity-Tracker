@@ -73,10 +73,16 @@ class Engine:
             local_day = cursor.astimezone(self.tz).date()
             day = local_day.isoformat()
             midnight = datetime.combine(local_day + timedelta(days=1), time.min, self.tz).astimezone(UTC)
-            boundary = min(end, midnight)
+            local = cursor.astimezone(self.tz)
+            # Split by elapsed time to next local clock hour; repeated DST hours aggregate.
+            hour_end = cursor + timedelta(seconds=3600-local.minute*60-local.second-local.microsecond/1_000_000)
+            boundary = min(end, midnight, hour_end)
             seconds = (boundary - cursor).total_seconds()
             bucket = self.day(day)
             bucket["apps"][self.app] = bucket["apps"].get(self.app, 0.0) + seconds
+            hours = bucket.setdefault("hours", {})
+            hour = str(local.hour)
+            hours[hour] = hours.get(hour, 0.0) + seconds
             parts = self.session["days"]
             if day not in parts:
                 bucket["sessions"] += 1
@@ -144,7 +150,7 @@ class Engine:
             ("day", today, today-timedelta(days=1), today-timedelta(days=1)),
             ("week", monday, monday-timedelta(days=7), today-timedelta(days=7)),
             ("month", month, prev_month, min(month-timedelta(days=1), prev_month+timedelta(days=today.day-1))),
-            ("year", today.replace(month=1, day=1), today.replace(month=1, day=1)-timedelta(days=365), today.replace(month=1, day=1)-timedelta(days=1)),
+            ("year", today.replace(month=1, day=1), today.replace(year=today.year-1, month=1, day=1), min(today.replace(month=1, day=1)-timedelta(days=1), today.replace(year=today.year-1, month=1, day=1)+timedelta(days=(today-today.replace(month=1, day=1)).days))),
         ):
             periods[label] = aggregate(start, today)
             periods[label]["previous_seconds"] = aggregate(prior_start, prior_end)["seconds"]

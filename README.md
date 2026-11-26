@@ -16,3 +16,6 @@ Authenticated WebSocket command media_activity_tracker/report with entry_id (fro
 
 ## Development
 Initial v0.1.0 candidate. Run python -m unittest discover -s tests and python -m compileall -q custom_components. Real HA testing required before release. See LICENSE.
+
+### Additional options
+Application aliases: comma-separated key=label pairs (prefer id: identifiers, e.g. id:12=Netflix). Optional app sensors: comma-separated app labels or id: identifiers; day, week and month sensors appear for each selection. Renaming an alias after history exists may require the stable id form. Time-of-day history is aggregated by local hour; repeated DST hours are combined. CSV export covers up to 3660 days.

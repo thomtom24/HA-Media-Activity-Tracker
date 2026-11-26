@@ -4,6 +4,7 @@ from homeassistant.const import UnitOfTime
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.core import callback
+from homeassistant.util import slugify
 from .const import DOMAIN
 
 SENSORS = {
@@ -26,7 +27,12 @@ SENSORS = {
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    async_add_entities([ActivitySensor(entry.runtime_data, key, spec) for key, spec in SENSORS.items()])
+    tracker = entry.runtime_data
+    entities = [ActivitySensor(tracker, key, spec) for key, spec in SENSORS.items()]
+    for app in dict.fromkeys(a.strip() for a in tracker.config.get("app_sensors", "").split(",") if a.strip()):
+        for period in ("day", "week", "month"):
+            entities.append(AppSensor(tracker, app, period))
+    async_add_entities(entities)
 
 
 class ActivitySensor(SensorEntity):
@@ -69,4 +75,20 @@ class ActivitySensor(SensorEntity):
         if self.key == "status":
             self._attr_extra_state_attributes = {"tracker_entry_id": self.tracker.entry.entry_id,
                 "source_entity": report["source"], "source_state": report["state"], "tracking_mode": report["mode"]}
+        self.async_write_ha_state()
+
+class AppSensor(ActivitySensor):
+    """Optional per-application duration sensors configured by app name or id:."""
+
+    def __init__(self, tracker, app, period):
+        self.app = app
+        super().__init__(tracker, f"app_{app}_{period}", (f"{app} time {period}", period, "seconds"))
+        self._attr_suggested_object_id = slugify(f"{app}_time_{period}")
+
+    @callback
+    def updated(self):
+        report = self.tracker.report(1)
+        seconds = sum(v for k, v in report["periods"][self.period]["apps"].items()
+                      if self.app.casefold() in (k.casefold(), report["apps"].get(k, "").casefold()))
+        self._attr_native_value = round(seconds / 60, 2)
         self.async_write_ha_state()
