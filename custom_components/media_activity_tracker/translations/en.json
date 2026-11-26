@@ -1,0 +1,62 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Select media player",
+        "data": {
+          "name": "Tracker name",
+          "entity": "Media player"
+        }
+      },
+      "settings": {
+        "title": "Tracking settings",
+        "description": "Optional conditions restrict when activity is recorded. Exclusions are comma-separated app names or id: identifiers.",
+        "data": {
+          "mode": "Tracking mode",
+          "logic": "Combine conditions (and/or)",
+          "condition_entities": "Additional entities (optional)",
+          "excluded": "Excluded apps (optional)"
+        }
+      },
+      "condition": {
+        "title": "Tracking condition",
+        "description": "Set the required condition for {entity}. Use the raw Home Assistant state.",
+        "data": {
+          "operator": "Comparison",
+          "value": "Required state or numeric threshold"
+        }
+      }
+    },
+    "error": {
+      "invalid_number": "Enter a finite number."
+    },
+    "abort": {
+      "already_configured": "This media player is already tracked."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tracking settings",
+        "description": "Optional conditions restrict when activity is recorded. Exclusions are comma-separated app names or id: identifiers.",
+        "data": {
+          "mode": "Tracking mode",
+          "logic": "Combine conditions (and/or)",
+          "condition_entities": "Additional entities (optional)",
+          "excluded": "Excluded apps (optional)"
+        }
+      },
+      "condition": {
+        "title": "Tracking condition",
+        "description": "Set the required condition for {entity}. Use the raw Home Assistant state.",
+        "data": {
+          "operator": "Comparison",
+          "value": "Required state or numeric threshold"
+        }
+      }
+    },
+    "error": {
+      "invalid_number": "Enter a finite number."
+    }
+  }
+}
