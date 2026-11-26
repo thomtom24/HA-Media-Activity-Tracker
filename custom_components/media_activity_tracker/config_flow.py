@@ -77,10 +77,10 @@ class ConfigFlow(Settings, config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         if user_input:
-            self.source = entity_ref(self.hass, user_input["entity"])
-            await self.async_set_unique_id(self.source)
+            self._media_source_ref = entity_ref(self.hass, user_input["entity"])
+            await self.async_set_unique_id(self._media_source_ref)
             self._abort_if_unique_id_configured()
-            self.name = user_input["name"]
+            self._tracker_name = user_input["name"]
             return await self.async_step_settings()
         return self.async_show_form(step_id="user", data_schema=vol.Schema({
             vol.Required("name"): selector.TextSelector(),
@@ -91,7 +91,7 @@ class ConfigFlow(Settings, config_entries.ConfigFlow, domain=DOMAIN):
         return await self.settings(user_input, "settings", {})
 
     def complete(self, settings):
-        return self.async_create_entry(title=self.name, data={"source": self.source, **settings})
+        return self.async_create_entry(title=self._tracker_name, data={"source": self._media_source_ref, **settings})
 
     @staticmethod
     @callback

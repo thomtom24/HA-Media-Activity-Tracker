@@ -14,6 +14,19 @@ jobs:
       - run: python -m unittest discover -s tests -v
       - run: pip install ruff
       - run: ruff check --select E9,F63,F7,F82 custom_components tests
+  config-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install Home Assistant with release constraints
+        run: |
+          curl --fail --silent --show-error --location https://raw.githubusercontent.com/home-assistant/core/2025.12.0/homeassistant/package_constraints.txt -o /tmp/ha-constraints.txt
+          python -m pip install -c /tmp/ha-constraints.txt homeassistant==2025.12.0 pycares==4.11.0
+          python -m pip check
+      - run: python -m unittest discover -s tests_ha -v
   hassfest:
     runs-on: ubuntu-latest
     steps:
