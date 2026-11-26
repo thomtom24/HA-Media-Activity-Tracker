@@ -4,8 +4,11 @@ from homeassistant.components import websocket_api
 from homeassistant.auth.permissions.const import POLICY_READ
 from homeassistant.core import callback
 from homeassistant.helpers.storage import Store
+from homeassistant.helpers import config_validation as cv
 from .const import DOMAIN
 from .tracker import Tracker
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass, config):

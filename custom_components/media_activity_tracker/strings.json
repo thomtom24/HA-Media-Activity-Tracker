@@ -6,7 +6,8 @@
         "data": {
           "name": "Tracker name",
           "entity": "Media player"
-        }
+        },
+        "description": "Choose one media player to track independently and give the tracker a name."
       },
       "settings": {
         "title": "Tracking settings",
