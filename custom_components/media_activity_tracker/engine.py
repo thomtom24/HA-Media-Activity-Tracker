@@ -10,7 +10,7 @@ ACTIVE = {"playing", "paused", "buffering", "idle", "on"}
 
 def app_identity(attributes):
     """Return stable key and label without recording media titles."""
-    name = str(attributes.get("app_name") or attributes.get("source") or "Unknown app")
+    name = str(attributes.get("app_name") or attributes.get("source") or "Unknown app")[:255]
     app_id = attributes.get("app_id")
     return ("id:" + str(app_id) if app_id not in (None, "") else "name:" + name.casefold(), name)
 

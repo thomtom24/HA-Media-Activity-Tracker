@@ -57,3 +57,12 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(flow, "async_create_entry", return_value={"type": "create_entry"}) as create:
             await flow.async_step_settings(data)
         self.assertEqual(create.call_args.kwargs["data"]["retention_days"], 365)
+
+
+class ApplicationSettingsTests(unittest.TestCase):
+    def test_legacy_and_structured_options(self):
+        from custom_components.media_activity_tracker.config_values import app_list, aliases, valid_application_settings
+        self.assertEqual(app_list("Netflix, YouTube"),["Netflix","YouTube"])
+        self.assertEqual(aliases("id:12=Netflix"),{"id:12":"Netflix"})
+        self.assertEqual(aliases([{"key":"id:12","label":"Netflix, TV"}]),{"id:12":"Netflix, TV"})
+        self.assertFalse(valid_application_settings({"aliases":[{"key":"x","label":"A"},{"key":"X","label":"B"}]}))

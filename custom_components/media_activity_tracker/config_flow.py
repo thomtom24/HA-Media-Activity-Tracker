@@ -5,6 +5,7 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er, selector
 from .const import DOMAIN, MODES, OPERATORS
+from .config_values import app_list, alias_rows, valid_application_settings
 
 
 def entity_ref(hass, entity_id):
@@ -37,10 +38,8 @@ class Settings:
             registry = er.async_get(self.hass)
             if any((item := registry.async_get(e)) is not None and item.platform == DOMAIN for e in selected):
                 errors["condition_entities"] = "circular_condition"
-            elif any(len(user_input.get(k, "")) > 4096 for k in ("excluded", "aliases", "app_sensors")):
+            elif not valid_application_settings(user_input):
                 errors["base"] = "invalid_text"
-            elif len(user_input.get("app_sensors", "").split(",")) > 40:
-                errors["app_sensors"] = "too_many_apps"
             elif len(selected) > 20:
                 errors["condition_entities"] = "too_many_conditions"
             else:
@@ -55,9 +54,9 @@ class Settings:
             vol.Optional("condition_entities", default=[resolve(self.hass, c["entity"]) for c in old]): selector.EntitySelector(selector.EntitySelectorConfig(multiple=True)),
             vol.Optional("retention_days", default=defaults.get("retention_days", 90)): vol.All(vol.Coerce(int), vol.Range(min=1, max=3650)),
             vol.Optional("pause_timeout", default=defaults.get("pause_timeout", 30)): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
-            vol.Optional("excluded", default=defaults.get("excluded", "")): selector.TextSelector(),
-            vol.Optional("aliases", default=defaults.get("aliases", "")): selector.TextSelector(),
-            vol.Optional("app_sensors", default=defaults.get("app_sensors", "")): selector.TextSelector(),
+            vol.Optional("excluded", default=app_list(defaults.get("excluded", []))): selector.TextSelector(selector.TextSelectorConfig(multiple=True)),
+            vol.Optional("aliases", default=alias_rows(defaults.get("aliases", []))): selector.ObjectSelector(selector.ObjectSelectorConfig(multiple=True, label_field="key", fields={"key": {"label": "App name or ID", "selector": selector.TextSelector(), "required": True}, "label": {"label": "Display name", "selector": selector.TextSelector(), "required": True}})),
+            vol.Optional("app_sensors", default=app_list(defaults.get("app_sensors", []))): selector.TextSelector(selector.TextSelectorConfig(multiple=True)),
         }), errors=errors)
 
     async def async_step_condition(self, user_input=None):

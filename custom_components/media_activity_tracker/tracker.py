@@ -14,6 +14,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .config_flow import resolve
+from .config_values import app_list, aliases as application_aliases
 from .engine import Engine, HOME, condition_matches, app_identity
 from .history import HistoryStore, validate
 
@@ -145,7 +146,7 @@ class Tracker:
                                            "available": state not in (None, "unknown", "unavailable")})
         results = [c["matched"] for c in self.condition_results]
         allowed = not self.invalid_condition and (not results or (all(results) if self.config.get("logic") != "or" else any(results)))
-        excluded = {s.strip().casefold() for s in self.config.get("excluded", "").split(",") if s.strip()}
+        excluded = {s.casefold() for s in app_list(self.config.get("excluded", []))}
         mode = self.config.get("mode", "playing")
         if elapsed > 120:
             # Do not infer playback across a long unobserved gap.
@@ -196,12 +197,10 @@ class Tracker:
     def report(self, days=366, *, include_sessions=True):
         if include_sessions and days in self.report_cache:
             return self.report_cache[days]
-        aliases = {}
-        for item in self.config.get("aliases", "").split(","):
-            key, sep, label = item.partition("=")
-            if sep and key.strip() and label.strip():
-                aliases[key.strip().casefold()] = label.strip()
+        aliases = application_aliases(self.config.get("aliases", []))
         result = self.engine.report(dt_util.utcnow(), days, settle=False, include_sessions=include_sessions)
+        if not include_sessions:
+            result["raw_apps"] = dict(result["apps"])
         result["apps"] = {key: aliases.get(key.casefold(), aliases.get(name.casefold(), name))
                           for key, name in result["apps"].items()}
         source = self.observed_states.get(self.source)
@@ -230,10 +229,15 @@ class Tracker:
             return
         self.refresh()
         self.stopped = True
+        self.close_subscriptions()
+        self.engine.finish()
+        await self.store.async_save(deepcopy(self.engine.storage()))
+
+    @callback
+    def close_subscriptions(self):
         if self.state_unsub:
             self.state_unsub()
+            self.state_unsub = None
         for unsub in self.unsubs:
             unsub()
         self.unsubs.clear()
-        self.engine.finish()
-        await self.store.async_save(deepcopy(self.engine.storage()))

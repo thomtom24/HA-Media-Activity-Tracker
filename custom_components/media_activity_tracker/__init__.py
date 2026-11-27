@@ -47,7 +47,11 @@ def websocket_report(hass, connection, msg):
 
 async def async_setup_entry(hass, entry):
     tracker = Tracker(hass, entry)
-    await tracker.start()
+    try:
+        await tracker.start()
+    except Exception:
+        tracker.close_subscriptions()
+        raise
     entry.runtime_data = tracker
     hass.data[DOMAIN][entry.entry_id] = tracker
     try:
@@ -62,8 +66,10 @@ async def async_setup_entry(hass, entry):
 async def async_unload_entry(hass, entry):
     if not await hass.config_entries.async_unload_platforms(entry, ["sensor"]):
         return False
-    await entry.runtime_data.stop()
-    hass.data[DOMAIN].pop(entry.entry_id, None)
+    try:
+        await entry.runtime_data.stop()
+    finally:
+        hass.data[DOMAIN].pop(entry.entry_id, None)
     return True
 
 
