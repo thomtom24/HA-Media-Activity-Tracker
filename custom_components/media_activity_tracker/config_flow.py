@@ -38,6 +38,10 @@ class Settings:
             registry = er.async_get(self.hass)
             if any((item := registry.async_get(e)) is not None and item.platform == DOMAIN for e in selected):
                 errors["condition_entities"] = "circular_condition"
+            elif any(len(user_input.get(k, "")) > 4096 for k in ("excluded", "aliases", "app_sensors")):
+                errors["base"] = "invalid_text"
+            elif len(user_input.get("app_sensors", "").split(",")) > 40:
+                errors["app_sensors"] = "too_many_apps"
             elif len(selected) > 20:
                 errors["condition_entities"] = "too_many_conditions"
             else:
@@ -104,6 +108,22 @@ class ConfigFlow(Settings, config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_settings(self, user_input=None):
         return await self.settings(user_input, "settings", {})
+
+    async def async_step_reconfigure(self, user_input=None):
+        entry = self._get_reconfigure_entry()
+        errors = {}
+        if user_input is not None:
+            ref = entity_ref(self.hass, user_input["entity"])
+            if any(e.entry_id != entry.entry_id and e.unique_id == ref for e in self.hass.config_entries.async_entries(DOMAIN)):
+                errors["entity"] = "already_configured"
+            elif not user_input.get("retain_history"):
+                errors["retain_history"] = "confirm_history"
+            else:
+                return self.async_update_reload_and_abort(entry, unique_id=ref, data_updates={"source": ref})
+        return self.async_show_form(step_id="reconfigure", data_schema=vol.Schema({
+            vol.Required("entity", default=resolve(self.hass, entry.data["source"])): selector.EntitySelector(selector.EntitySelectorConfig(domain="media_player")),
+            vol.Required("retain_history", default=False): selector.BooleanSelector(),
+        }), errors=errors)
 
     def complete(self, settings):
         return self.async_create_entry(title=self._tracker_name, data={"source": self._media_source_ref, **settings})

@@ -53,7 +53,8 @@ class Tracker:
     async def start(self):
         from pathlib import Path
         # HA may rename corrupt JSON and return None; do not create replacement history.
-        existed = await self.hass.async_add_executor_job(Path(self.store.path).exists)
+        path = Path(self.store.path)
+        existed = await self.hass.async_add_executor_job(lambda: path.exists() or any(path.parent.glob(path.name + ".corrupt.*")))
         try:
             data = await self.store.async_load()
             if data is None and existed:
@@ -70,6 +71,12 @@ class Tracker:
             self.engine.data["mixed_history"] = True
             self.engine.data.setdefault("mode_changes", []).append({"at": now.isoformat(), "mode": mode})
         self.engine.data["last_mode"] = mode
+        previous_source = self.engine.data.get("last_source")
+        if previous_source is not None and previous_source != self.config["source"]:
+            self.engine.data["mixed_history"] = True
+            self.engine.data.setdefault("source_changes", []).append(now.isoformat())
+        self.engine.data["last_source"] = self.config["source"]
+        self.last_mono = time.monotonic()
         self.engine.prune(now, self.config.get("retention_days", 90))
         self.watch()
         self.unsubs.append(async_track_time_interval(self.hass, self.tick, timedelta(seconds=30)))
@@ -90,7 +97,7 @@ class Tracker:
     @callback
     def registry_changed(self, event):
         old = {self.source, *(e for e, _ in self.condition_entities)}
-        if not old.intersection({event.data.get("entity_id"), event.data.get("old_entity_id")}):
+        if not old.intersection({event.data.get("entity_id"), event.data.get("old_entity_id")}) and not (event.data.get("action") == "create" and any("media_activity_missing_" in e for e in old)):
             return
         self.source = resolve(self.hass, self.config["source"])
         self._conditions()
@@ -129,6 +136,9 @@ class Tracker:
         allowed = not self.invalid_condition and (not results or (all(results) if self.config.get("logic") != "or" else any(results)))
         excluded = {s.strip().casefold() for s in self.config.get("excluded", "").split(",") if s.strip()}
         mode = self.config.get("mode", "playing")
+        if elapsed > 120:
+            # Do not infer playback across a long unobserved gap.
+            elapsed = 0
         self.engine.transition(now, self.source_state, attributes, allowed, mode, excluded,
                                elapsed=elapsed, pause_timeout=self.config.get("pause_timeout", 30))
         self.dirty |= previous_active or self.engine.active or previous_app != self.engine.app

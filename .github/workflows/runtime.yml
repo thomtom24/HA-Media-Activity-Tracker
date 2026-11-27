@@ -1,0 +1,29 @@
+name: Home Assistant runtime compatibility
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        ha: ['2025.12.0', '2026.11.3']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          ref: v0.2.4
+          path: previous-release
+          persist-credentials: false
+      - name: Test actual HA startup, upgrade, reload and isolation
+        env:
+          HA_VERSION: ${{ matrix.ha }}
+        run: |
+          docker run --rm --mount "type=bind,source=$PWD,target=/workspace,readonly" --entrypoint python "ghcr.io/home-assistant/home-assistant:$HA_VERSION" /workspace/tests/runtime_smoke.py "$HA_VERSION"

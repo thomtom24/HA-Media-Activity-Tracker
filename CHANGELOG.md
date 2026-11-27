@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.0
+- Consolidated Marketplace preparation and audit hardening: branding, categories, unrestricted validation, version checks and documentation.
+- Private atomic history, validation, storage error reporting, dirty checkpoints and shutdown save.
+- Shared sensor snapshot, clock-jump protection, session timeout and cap, app ID fallback, source reconfiguration and mode-change warnings.
+- Tracker and source read permissions, direct condition-loop protection, safer card configuration and CSV export, retries and responsive layout.
+- Expand regression and runtime tests. Compatibility and user migration still require verification.
+
+Note: v0.2.4 was tagged with internal version 0.2.1; this release restores version alignment.
+
 ## v0.2.1
 - Classify Media Activity Tracker as a service so it appears in the main Integrations list instead of Helpers.
 - Keep existing configuration entries, history, sensor identifiers and card settings unchanged.

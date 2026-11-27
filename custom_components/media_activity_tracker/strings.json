@@ -30,6 +30,14 @@
           "operator": "Comparison",
           "value": "Required state or numeric threshold"
         }
+      },
+      "reconfigure": {
+        "title": "Replace media player",
+        "description": "Choose a replacement source. Existing history and tracker sensor IDs are kept. For a fresh history, add a separate tracker instead.",
+        "data": {
+          "entity": "Replacement media player",
+          "retain_history": "Retain existing history"
+        }
       }
     },
     "error": {
@@ -37,10 +45,15 @@
       "circular_condition": "Tracker sensors cannot be used as tracking conditions.",
       "too_many_conditions": "Choose at most 20 conditions.",
       "invalid_value": "Enter a non-empty value up to 255 characters.",
-      "invalid_name": "Enter a name up to 128 characters."
+      "invalid_name": "Enter a name up to 128 characters.",
+      "invalid_text": "Application settings are limited to 4096 characters each.",
+      "too_many_apps": "Choose at most 40 application sensor sets.",
+      "already_configured": "This player is already tracked.",
+      "confirm_history": "Confirm that existing history will be retained, or cancel and create a separate tracker."
     },
     "abort": {
-      "already_configured": "This media player is already tracked."
+      "already_configured": "This media player is already tracked.",
+      "reconfigure_successful": "Media player updated."
     }
   },
   "options": {
@@ -73,7 +86,11 @@
       "circular_condition": "Tracker sensors cannot be used as tracking conditions.",
       "too_many_conditions": "Choose at most 20 conditions.",
       "invalid_value": "Enter a non-empty value up to 255 characters.",
-      "invalid_name": "Enter a name up to 128 characters."
+      "invalid_name": "Enter a name up to 128 characters.",
+      "invalid_text": "Application settings are limited to 4096 characters each.",
+      "too_many_apps": "Choose at most 40 application sensor sets.",
+      "already_configured": "This player is already tracked.",
+      "confirm_history": "Confirm that existing history will be retained, or cancel and create a separate tracker."
     }
   }
 }

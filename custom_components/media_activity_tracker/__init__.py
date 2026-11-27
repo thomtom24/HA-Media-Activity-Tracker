@@ -38,7 +38,7 @@ def websocket_report(hass, connection, msg):
     if not connection.user.permissions.check_entity(tracker.source, POLICY_READ):
         connection.send_error(msg["id"], "unauthorized", "Source entity access denied")
         return
-    status = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, f"{msg[\"entry_id\"]}_status")
+    status = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, msg["entry_id"] + "_status")
     if not status or not connection.user.permissions.check_entity(status, POLICY_READ):
         connection.send_error(msg["id"], "unauthorized", "Tracker entity access denied")
         return
