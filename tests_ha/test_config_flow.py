@@ -51,7 +51,7 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         data = {"mode": "playing", "logic": "and", "retention_days": 365}
         self.assertEqual(form["data_schema"](data)["retention_days"], 365)
         import voluptuous as vol
-        for invalid in (0, 3651):
+        for invalid in (0, 3651, 1.5, True):
             with self.assertRaises(vol.Invalid):
                 form["data_schema"]({**data, "retention_days": invalid})
         with patch.object(flow, "async_create_entry", return_value={"type": "create_entry"}) as create:

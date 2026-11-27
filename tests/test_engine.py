@@ -107,7 +107,7 @@ class TestEngine(unittest.TestCase):
         self.e.transition(self.t,"off",self.a,True,"playing",observed=True)
         self.e.transition(self.t+timedelta(minutes=5),"unavailable",self.a,True,"playing",observed=False)
         self.e.transition(self.t+timedelta(minutes=7),"off",self.a,True,"playing",observed=True)
-        self.assertEqual(self.e.data["coverage"]["2026-11-26"],{"observed":300,"unavailable":120})
+        self.assertEqual(self.e.data["coverage"]["2026-11-26"],{"observed":300,"unavailable":120,"hours":{"23":{"observed":300,"unavailable":120}}})
 
     def test_lord_howe_fractional_dst(self):
         tz=ZoneInfo("Australia/Lord_Howe")
@@ -122,3 +122,28 @@ class TestEngine(unittest.TestCase):
         self.change(0,"playing")
         self.e.transition(self.t+timedelta(minutes=1),"playing",{"app_name":"BBC iPlayer"},True,"playing",{"id:11703"})
         self.assertFalse(self.e.active)
+
+    def test_promote_continuous_name_only_session(self):
+        self.change(0, "playing", {"app_name": "BBC iPlayer"})
+        self.change(2, "playing", self.a)
+        self.change(4, "off")
+        p = self.e.report(self.t+timedelta(minutes=4))
+        self.assertEqual(p["periods"]["day"]["apps"], {"id:11703": 240})
+        self.assertEqual(p["periods"]["day"]["sessions"], 1)
+
+    def test_observation_average_and_comparison_after_change(self):
+        start = datetime(2026, 11, 20, tzinfo=timezone.utc)
+        e = m.Engine(None, ZoneInfo("UTC"), start)
+        e.data.update(coverage_since="2026-11-20", mixed_history=True,
+                      mode_changes=[{"at": start.isoformat(), "mode": "playing"}])
+        e.transition(start, "playing", self.a, True, "playing", observed=True)
+        e.transition(start+timedelta(hours=1), "off", self.a, True, "playing", observed=True)
+        e.transition(start+timedelta(days=1), "playing", self.a, True, "playing", observed=True)
+        e.transition(start+timedelta(days=1,hours=1), "off", self.a, True, "playing", observed=True)
+        now = start+timedelta(days=1,hours=2)
+        p = e.report(now)["periods"]["day"]
+        self.assertEqual(p["previous_seconds"], 3600)
+        self.assertEqual(p["observed_day_average"], 3600)
+        e.transition(now, "unavailable", self.a, True, "playing", observed=False)
+        p = e.report(now+timedelta(hours=2))["periods"]["day"]
+        self.assertIsNone(p["previous_seconds"])

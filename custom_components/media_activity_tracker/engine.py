@@ -103,7 +103,10 @@ class Engine:
             seconds = (boundary - cursor).total_seconds()
             if self.observed is not None:
                 coverage = self.data.setdefault("coverage", {}).setdefault(day, {"observed": 0.0, "unavailable": 0.0})
-                coverage["observed" if self.observed else "unavailable"] += seconds
+                category = "observed" if self.observed else "unavailable"
+                coverage[category] += seconds
+                hourly = coverage.setdefault("hours", {}).setdefault(str(local.hour), {"observed": 0.0, "unavailable": 0.0})
+                hourly[category] += seconds
             if not self.active or self.session is None:
                 cursor = boundary
                 continue
@@ -131,6 +134,25 @@ class Engine:
             matches = [k for k,v in self.data["apps"].items() if k.startswith("id:") and v.casefold() == name.casefold()]
             if len(matches) == 1:
                 key = matches[0]
+        # Promote only the continuous session; older same-name records could
+        # refer to different applications and are deliberately retained.
+        fallback = "name:" + name.casefold()
+        if (key.startswith("id:") and name != "Unknown app" and self.app == fallback
+                and self.session and not self.data.get("mixed_history")
+                and not any(k.startswith("id:") and k != key and v.casefold() == name.casefold()
+                            for k, v in self.data["apps"].items())):
+            for day, seconds in self.session["days"].items():
+                apps = self.data["days"][day]["apps"]
+                remaining = apps[fallback] - seconds
+                if remaining <= 0.000001:
+                    apps.pop(fallback)
+                else:
+                    apps[fallback] = remaining
+                apps[key] = apps.get(key, 0.0) + seconds
+            self.session["app"] = key
+            self.app = key
+            if not any(fallback in bucket["apps"] for bucket in self.data["days"].values()):
+                self.data["apps"].pop(fallback, None)
         if name == "Unknown app" and key in self.data["apps"]:
             name = self.data["apps"][key]
         active = allowed and key.casefold() not in excluded and name.casefold() not in excluded and qualifies(state, attributes, mode, excluded)
@@ -179,6 +201,19 @@ class Engine:
         monday = today - timedelta(days=today.weekday())
         month = today.replace(day=1)
         prev_month = (month - timedelta(days=1)).replace(day=1)
+        coverage = self.data.get("coverage", {})
+        coverage_since = self.data.get("coverage_since")
+        changes = [datetime.fromisoformat(item["at"]) for item in self.data.get("mode_changes", [])]
+        changes += [datetime.fromisoformat(item) for item in self.data.get("source_changes", [])]
+        if self.data.get("comparison_reset"):
+            changes.append(datetime.fromisoformat(self.data["comparison_reset"]))
+        latest_change = max(changes, default=None)
+
+        def mixed(start):
+            if not self.data.get("mixed_history"):
+                return False
+            return latest_change is None or datetime.combine(start, time.min, self.tz) < latest_change
+
         def aggregate(start, end):
             apps = {}
             count = 0
@@ -192,9 +227,24 @@ class Engine:
                     for app, seconds in bucket["apps"].items():
                         apps[app] = apps.get(app, 0.0) + seconds
             total = sum(apps.values())
+            known_days = 0
+            observed_seconds = 0.0
+            observed_activity = 0.0
+            for offset in range(max(0, (end-start).days+1)):
+                key = (start+timedelta(days=offset)).isoformat()
+                if coverage_since and key >= coverage_since:
+                    observed = coverage.get(key, {}).get("observed", 0)
+                    if observed > 0:
+                        known_days += 1
+                        observed_seconds += observed
+                        observed_activity += sum(self.data["days"].get(key, {}).get("apps", {}).values())
             return {"seconds": total, "apps": apps, "sessions": count,
                     "longest": longest, "days": max(1, (end-start).days+1),
-                    "observed_days": max(0, (end-max(start, recorded_day)).days+1)}
+                    "observed_days": max(0, (end-max(start, recorded_day)).days+1),
+                    "days_with_observation": known_days,
+                    "observed_seconds": observed_seconds,
+                    "observed_day_average": observed_activity / known_days if known_days else None,
+                    "mixed_history": mixed(start)}
         def comparable(start, prior_start, prior_end):
             """Compare common completed local days and completed clock hours.
 
@@ -202,10 +252,36 @@ class Engine:
             partial hour on both sides; cap shorter calendar periods equally.
             """
             common = min((today-start).days+1, (prior_end-prior_start).days+1)
-            if common <= 0 or recorded_since > datetime.combine(prior_start, time.min, self.tz):
+            if common <= 0 or mixed(prior_start) or recorded_since > datetime.combine(prior_start, time.min, self.tz):
                 return {"comparison_seconds": None, "previous_seconds": None}
             current_last = start + timedelta(days=common-1)
             prior_last = prior_start + timedelta(days=common-1)
+            # Require complete observed coverage, including the completed
+            # clock hours on the last day of each period.
+            def complete(start_day, last_day, partial):
+                if not coverage_since:
+                    return True
+                for offset in range((last_day-start_day).days+1):
+                    day = start_day+timedelta(days=offset)
+                    key = day.isoformat()
+                    if key < coverage_since:
+                        return False
+                    bucket = coverage.get(key, {})
+                    midnight = datetime.combine(day, time.min, self.tz).astimezone(UTC)
+                    end = datetime.combine(day+timedelta(days=1), time.min, self.tz).astimezone(UTC)
+                    if partial and day == last_day:
+                        end = datetime.combine(day, time(local_now.hour), self.tz).astimezone(UTC)
+                        observed = sum(v["observed"] for h,v in bucket.get("hours", {}).items()
+                                       if int(h) < local_now.hour)
+                    else:
+                        observed = bucket.get("observed", 0)
+                    expected = (end-midnight).total_seconds()
+                    if abs(observed-expected) > 5:
+                        return False
+                return True
+            partial = current_last == today
+            if not complete(start, current_last, partial) or not complete(prior_start, prior_last, partial):
+                return {"comparison_seconds": None, "previous_seconds": None}
             if current_last < today:
                 return {"comparison_seconds": aggregate(start, current_last)["seconds"],
                         "previous_seconds": aggregate(prior_start, prior_last)["seconds"]}
@@ -231,8 +307,6 @@ class Engine:
         ):
             periods[label] = aggregate(start, today)
             periods[label].update(comparable(start, prior_start, prior_end))
-            if self.data.get("mixed_history"):
-                periods[label].update(comparison_seconds=None, previous_seconds=None)
         for length in (7, 30, 90, 365):
             periods[str(length)] = aggregate(today-timedelta(days=length-1), today)
         start = today-timedelta(days=days-1)

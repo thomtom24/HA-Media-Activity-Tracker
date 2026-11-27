@@ -1,4 +1,4 @@
-"""Exercise real Core startup and upgrade from v0.2.4 in disposable config."""
+"""Exercise real Core startup and upgrade from v0.3.0 in disposable config."""
 import asyncio
 import json
 from pathlib import Path
@@ -40,6 +40,47 @@ def status(hass, entry):
     assert entity
     return hass.states.get(entity)
 
+async def safety_checks(hass, entry):
+    """Use real HA Store, actual filesystem errors and real HA permission policies."""
+    from copy import deepcopy
+    from types import SimpleNamespace
+    from homeassistant.auth.models import Group, User
+    from homeassistant.auth.permissions.models import PermissionLookup
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from custom_components.media_activity_tracker import websocket_report
+    tracker = entry.runtime_data
+    path = Path(tracker.store.path)
+    snapshot = deepcopy(tracker.engine.storage())
+    await tracker.store.async_save(snapshot)
+    assert path.is_file()
+    assert path.stat().st_mode & 0o077 == 0
+    original = path.with_name(path.name + ".test-original")
+    path.rename(original)
+    path.mkdir()
+    try:
+        await tracker.store.async_save(snapshot)
+        assert tracker.store.write_failed
+    finally:
+        path.rmdir()
+        original.rename(path)
+    await tracker.store.async_save(snapshot)
+    assert not tracker.store.write_failed
+    assert tracker.store.last_success
+    assert json.loads(path.read_text())["data"] == snapshot
+    assert path.stat().st_mode & 0o077 == 0
+    registry = er.async_get(hass)
+    status_id = registry.async_get_entity_id("sensor", DOMAIN, entry.entry_id+"_status")
+    lookup = PermissionLookup(registry, dr.async_get(hass))
+    for allowed_ids, permitted in (([tracker.source], False), ([status_id], False),
+                                  ([tracker.source, status_id], True)):
+        group = Group(name="Restricted runtime test", policy={"entities":{"entity_ids":{entity:{"read":True} for entity in allowed_ids}}})
+        user = User(name="Restricted", perm_lookup=lookup, groups=[group], is_active=True)
+        result = []
+        connection = SimpleNamespace(user=user, send_error=lambda *args: result.append(("error",args)),
+                                     send_result=lambda *args: result.append(("result",args)))
+        websocket_report(hass, connection, {"id":1,"entry_id":entry.entry_id,"days":1})
+        assert result and result[0][0] == ("result" if permitted else "error"), result
+
 async def phase(directory, name, version):
     from homeassistant import bootstrap, loader
     from homeassistant.const import __version__
@@ -76,6 +117,11 @@ async def phase(directory, name, version):
             await wait(hass,lambda: status(hass,entry).state=="condition_not_met")
             assert await hass.config_entries.async_reload(entry.entry_id)
             await wait(hass,lambda: status(hass,entry).state=="condition_not_met")
+            assert entry.runtime_data.report(1)["periods"]["day"]["seconds"] >= expected["total"]
+            await safety_checks(hass, entry)
+            hass.config_entries.async_update_entry(entry, options={**entry.options, "mode":"power"})
+            assert await hass.config_entries.async_reload(entry.entry_id)
+            assert entry.runtime_data.engine.data["mixed_history"]
             assert entry.runtime_data.report(1)["periods"]["day"]["seconds"] >= expected["total"]
             assert await hass.config_entries.async_unload(second.entry_id)
         print("PASS",version,name,flush=True)

@@ -29,3 +29,9 @@ test("normalises unsupported card settings",()=>{
 test("stable tracker identity survives a sensor rename",()=>{
  assert.equal(vm.runInContext('trackerEntity({states:{"sensor.new":{attributes:{tracker_entry_id:"abc"}}}},{entity:"sensor.old",tracker_entry_id:"abc"})',context),"sensor.new");
 });
+
+test("distinguishes missing observations from confirmed zero activity",()=>{
+ assert.equal(vm.runInContext('missingObservation({apps:{},coverage:{observed:0}})',context),true);
+ assert.equal(vm.runInContext('missingObservation({apps:{},coverage:{observed:10}})',context),false);
+ assert.match(vm.runInContext('chart([{date:"2026-11-27",apps:{},coverage:{observed:0}}],{})',context),/no observation/);
+});
