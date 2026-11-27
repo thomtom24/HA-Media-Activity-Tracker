@@ -7,7 +7,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 from .config_flow import resolve
-from .engine import Engine, condition_matches, app_identity
+from .engine import Engine, HOME, condition_matches, app_identity
 
 
 class Tracker:
@@ -20,6 +20,7 @@ class Tracker:
         self.reason = "initializing"
         self.source_state = "unknown"
         self.current_app = "Unknown app"
+        self.condition_results = []
 
     @property
     def source(self):
@@ -27,6 +28,7 @@ class Tracker:
 
     async def start(self):
         self.engine = Engine(await self.store.async_load(), dt_util.get_time_zone(self.hass.config.time_zone), dt_util.utcnow())
+        self.engine.prune(dt_util.utcnow(), self.config.get("retention_days", 90))
         self.watch()
         self.unsubs.append(async_track_time_interval(self.hass, self.tick, timedelta(seconds=30)))
         self.unsubs.append(self.hass.bus.async_listen("entity_registry_updated", self.registry_changed))
@@ -58,9 +60,14 @@ class Tracker:
         attributes = source.attributes if source else {}
         self.current_app = app_identity(attributes)[1]
         results = []
+        self.condition_results = []
         for condition in self.config.get("conditions", []):
             entity = self.hass.states.get(resolve(self.hass, condition["entity"]))
-            results.append(condition_matches(entity.state if entity else None, condition["operator"], condition["value"]))
+            state = entity.state if entity else None
+            matched = condition_matches(state, condition["operator"], condition["value"])
+            results.append(matched)
+            self.condition_results.append({"operator": condition["operator"], "matched": matched,
+                                           "available": state not in (None, "unknown", "unavailable")})
         allowed = not results or (all(results) if self.config.get("logic") != "or" else any(results))
         excluded = {s.strip().casefold() for s in self.config.get("excluded", "").split(",") if s.strip()}
         self.engine.transition(now, self.source_state, attributes, allowed, self.config.get("mode", "playing"), excluded)
@@ -72,13 +79,29 @@ class Tracker:
         for key, name in list(self.engine.data["apps"].items()):
             self.engine.data["apps"][key] = aliases.get(key.casefold(), aliases.get(name.casefold(), name))
         self.current_app = aliases.get(app_identity(attributes)[0].casefold(), aliases.get(self.current_app.casefold(), self.current_app))
-        self.reason = "tracking" if self.engine.active else "condition_not_met" if not allowed else "source_not_active"
+        if self.engine.active:
+            self.reason = "tracking"
+        elif not allowed:
+            self.reason = "condition_not_met"
+        elif self.source_state in ("unknown", "unavailable"):
+            self.reason = "source_unavailable"
+        elif self.source_state in ("off", "standby"):
+            self.reason = "source_off"
+        elif self.source_state in ("paused", "buffering") and self.config.get("mode", "playing") == "playing":
+            self.reason = self.source_state
+        elif self.config.get("mode", "playing") != "power" and (
+            app_identity(attributes)[1].casefold() in HOME | excluded
+            or app_identity(attributes)[0].casefold() in excluded
+        ):
+            self.reason = "app_excluded"
+        else:
+            self.reason = "source_not_active"
         self.notify()
 
     @callback
     def tick(self, now):
         self.refresh()
-        self.engine.prune(now)
+        self.engine.prune(now, self.config.get("retention_days", 90))
         self.store.async_delay_save(self.engine.storage, 1)
 
     @callback
@@ -89,7 +112,8 @@ class Tracker:
     def report(self, days=366):
         return {**self.engine.report(dt_util.utcnow(), days), "name": self.entry.title,
                 "source": self.source, "state": self.source_state, "app": self.current_app,
-                "reason": self.reason, "mode": self.config.get("mode", "playing")}
+                "reason": self.reason, "mode": self.config.get("mode", "playing"),
+                "condition_results": self.condition_results, "retention_days": self.config.get("retention_days", 90)}
 
     async def stop(self):
         self.state_unsub()

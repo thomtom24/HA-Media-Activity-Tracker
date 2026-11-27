@@ -1,13 +1,19 @@
 {
   "domain": "media_activity_tracker",
   "name": "Media Activity Tracker",
+  "after_dependencies": [
+    "lovelace"
+  ],
   "codeowners": [
     "@thomtom24"
   ],
   "config_flow": true,
+  "dependencies": [
+    "http"
+  ],
   "documentation": "https://github.com/thomtom24/HA-Media-Activity-Tracker",
   "integration_type": "helper",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/thomtom24/HA-Media-Activity-Tracker/issues",
-  "version": "0.1.1"
+  "version": "0.2.0"
 }

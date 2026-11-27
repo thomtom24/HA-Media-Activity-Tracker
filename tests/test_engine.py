@@ -49,3 +49,36 @@ class TestEngine(unittest.TestCase):
         e.transition(start,"playing",self.a,True,"playing")
         e.settle(end)
         self.assertEqual(e.data["days"]["2026-10-25"]["apps"]["id:11703"],25*3600)
+
+    def test_observed_days_include_zero_days_since_install(self):
+        self.change(0, "playing")
+        self.change(5, "off")
+        report = self.e.report(self.t+timedelta(days=2))
+        self.assertEqual(report["periods"]["30"]["observed_days"], 3)
+        self.assertEqual(report["periods"]["30"]["days"], 30)
+        self.assertEqual(report["periods"]["30"]["seconds"], 300)
+        self.assertIsNone(report["periods"]["week"]["previous_seconds"])
+
+    def test_like_for_like_completed_hours(self):
+        start = datetime(2026, 11, 24, 0, tzinfo=timezone.utc)
+        e = m.Engine(None, ZoneInfo("Europe/London"), start)
+        yesterday = start + timedelta(days=1)
+        today = start + timedelta(days=2)
+        e.transition(yesterday+timedelta(hours=8), "playing", self.a, True, "playing")
+        e.transition(yesterday+timedelta(hours=9), "off", self.a, True, "playing")
+        e.transition(yesterday+timedelta(hours=20), "playing", self.a, True, "playing")
+        e.transition(yesterday+timedelta(hours=22), "off", self.a, True, "playing")
+        e.transition(today+timedelta(hours=8), "playing", self.a, True, "playing")
+        e.transition(today+timedelta(hours=8,minutes=30), "off", self.a, True, "playing")
+        e.transition(today+timedelta(hours=10), "playing", self.a, True, "playing")
+        p = e.report(today+timedelta(hours=10,minutes=30))["periods"]["day"]
+        self.assertEqual(p["seconds"], 3600)
+        self.assertEqual(p["comparison_seconds"], 1800)
+        self.assertEqual(p["previous_seconds"], 3600)
+
+    def test_session_retention_does_not_delete_daily_totals(self):
+        self.change(0, "playing")
+        self.change(5, "off")
+        self.e.prune(self.t+timedelta(days=3), 2)
+        self.assertEqual(self.e.data["sessions"], [])
+        self.assertEqual(self.e.data["days"]["2026-11-26"]["apps"]["id:11703"], 300)

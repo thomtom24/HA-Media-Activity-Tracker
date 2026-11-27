@@ -42,6 +42,7 @@ class Settings:
             vol.Required("mode", default=defaults.get("mode", "playing")): choice(MODES),
             vol.Required("logic", default=defaults.get("logic", "and")): choice(["and", "or"]),
             vol.Optional("condition_entities", default=[resolve(self.hass, c["entity"]) for c in old]): selector.EntitySelector(selector.EntitySelectorConfig(multiple=True)),
+            vol.Optional("retention_days", default=defaults.get("retention_days", 90)): vol.All(vol.Coerce(int), vol.Range(min=1, max=3650)),
             vol.Optional("excluded", default=defaults.get("excluded", "")): selector.TextSelector(),
             vol.Optional("aliases", default=defaults.get("aliases", "")): selector.TextSelector(),
             vol.Optional("app_sensors", default=defaults.get("app_sensors", "")): selector.TextSelector(),
