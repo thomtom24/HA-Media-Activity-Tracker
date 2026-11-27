@@ -19,7 +19,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: v0.2.4
+          ref: v0.3.0
           path: previous-release
           persist-credentials: false
       - name: Test actual HA startup, upgrade, reload and isolation

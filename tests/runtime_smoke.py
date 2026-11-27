@@ -1,4 +1,4 @@
-"""Exercise real Core startup and upgrade from v0.2.4 in disposable config."""
+"""Exercise real Core startup and upgrade from v0.3.0 in disposable config."""
 import asyncio
 import json
 from pathlib import Path

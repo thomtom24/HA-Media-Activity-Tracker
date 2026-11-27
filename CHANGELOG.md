@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.1
+- Restore comparable periods after mode/source changes; track hourly coverage and show observed-day averages and gaps separately.
+- Reconcile continuous name-only sessions with unambiguous app IDs without rewriting unrelated history.
+- Strengthen history and whole-number validation, report snapshots and frontend error recovery.
+- Add storage/backup recovery, permissions and upgrade regression checks; validate release tags.
+
 ## v0.3.0
 - Consolidated Marketplace preparation and audit hardening: branding, categories, unrestricted validation, version checks and documentation.
 - Private atomic history, validation, storage error reporting, dirty checkpoints and shutdown save.

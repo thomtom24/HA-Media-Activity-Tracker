@@ -1,6 +1,6 @@
 # Compatibility and runtime testing
 
-The runtime workflow targets HA 2025.12.0 and 2026.11.3 using official container images. It boots the tagged v0.2.4 integration then restarts with the candidate, checking history, independent entries, a condition and reload. Consult Actions for actual results; the workflow does not emulate Marketplace UI or real streaming hardware.
+The runtime workflow targets HA 2025.12.0 and 2026.11.3 using official container images. It boots the tagged v0.3.0 integration then restarts with the candidate, checking history, independent entries, a condition and reload. Consult Actions for actual results; the workflow does not emulate Marketplace UI or real streaming hardware.
 
 | Source | Evidence | Limitations |
 | --- | --- | --- |

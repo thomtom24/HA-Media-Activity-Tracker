@@ -107,7 +107,7 @@ class TestEngine(unittest.TestCase):
         self.e.transition(self.t,"off",self.a,True,"playing",observed=True)
         self.e.transition(self.t+timedelta(minutes=5),"unavailable",self.a,True,"playing",observed=False)
         self.e.transition(self.t+timedelta(minutes=7),"off",self.a,True,"playing",observed=True)
-        self.assertEqual(self.e.data["coverage"]["2026-11-26"],{"observed":300,"unavailable":120})
+        self.assertEqual(self.e.data["coverage"]["2026-11-26"],{"observed":300,"unavailable":120,"hours":{"23":{"observed":300,"unavailable":120}}})
 
     def test_lord_howe_fractional_dst(self):
         tz=ZoneInfo("Australia/Lord_Howe")
