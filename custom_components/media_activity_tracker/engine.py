@@ -59,6 +59,7 @@ class Engine:
         self.active = False
         self.app = None
         self.session = None
+        self.observed = None
 
     def day(self, day):
         return self.data["days"].setdefault(day, {"apps": {}, "sessions": 0, "longest": 0.0})
@@ -77,7 +78,7 @@ class Engine:
             # A wall-clock correction or unobserved suspend is not confirmed activity.
             self.finish()
             return
-        if not self.active or self.session is None:
+        if (not self.active or self.session is None) and self.observed is None:
             return
         while cursor < end:
             local_day = cursor.astimezone(self.tz).date()
@@ -89,7 +90,23 @@ class Engine:
             boundary = min(end, midnight, hour_end)
             if boundary <= cursor:
                 boundary = min(end, cursor + timedelta(minutes=1))
+            # A fractional-hour offset change can precede the next nominal hour.
+            if (boundary-timedelta(microseconds=1)).astimezone(self.tz).utcoffset() != local.utcoffset():
+                low, high = cursor, boundary
+                while (high-low).total_seconds() > .000001:
+                    mid = low + (high-low)/2
+                    if mid.astimezone(self.tz).utcoffset() == local.utcoffset():
+                        low = mid
+                    else:
+                        high = mid
+                boundary = high
             seconds = (boundary - cursor).total_seconds()
+            if self.observed is not None:
+                coverage = self.data.setdefault("coverage", {}).setdefault(day, {"observed": 0.0, "unavailable": 0.0})
+                coverage["observed" if self.observed else "unavailable"] += seconds
+            if not self.active or self.session is None:
+                cursor = boundary
+                continue
             bucket = self.day(day)
             bucket["apps"][self.app] = bucket["apps"].get(self.app, 0.0) + seconds
             hours = bucket.setdefault("hours", {})
@@ -105,17 +122,20 @@ class Engine:
             self.session["end"] = boundary.isoformat()
             cursor = boundary
 
-    def transition(self, now, state, attributes, allowed, mode, excluded=(), elapsed=None, pause_timeout=30):
+    def transition(self, now, state, attributes, allowed, mode, excluded=(), elapsed=None, pause_timeout=30, observed=None):
         self.settle(now, elapsed)
+        self.observed = observed
         key, name = app_identity(attributes)
         # Reuse an unambiguous known ID when the source temporarily omits it.
         if key.startswith("name:") and name != "Unknown app":
             matches = [k for k,v in self.data["apps"].items() if k.startswith("id:") and v.casefold() == name.casefold()]
             if len(matches) == 1:
                 key = matches[0]
-        active = allowed and qualifies(state, attributes, mode, excluded)
+        if name == "Unknown app" and key in self.data["apps"]:
+            name = self.data["apps"][key]
+        active = allowed and key.casefold() not in excluded and name.casefold() not in excluded and qualifies(state, attributes, mode, excluded)
         # Pause/buffer retains the session for the same app; other interruptions end it.
-        suspended = allowed and state in ("paused", "buffering") and key == self.app
+        suspended = allowed and key.casefold() not in excluded and name.casefold() not in excluded and state in ("paused", "buffering") and key == self.app
         if suspended and not active:
             self.suspended_since = self.suspended_since or now
             suspended = (now-self.suspended_since).total_seconds() < pause_timeout*60
@@ -163,8 +183,10 @@ class Engine:
             apps = {}
             count = 0
             longest = 0.0
-            for key, bucket in self.data["days"].items():
-                if start.isoformat() <= key <= end.isoformat():
+            for offset in range(max(0, (end-start).days+1)):
+                key = (start+timedelta(days=offset)).isoformat()
+                bucket = self.data["days"].get(key)
+                if bucket:
                     count += bucket["sessions"]
                     longest = max(longest, bucket["longest"])
                     for app, seconds in bucket["apps"].items():
@@ -214,11 +236,15 @@ class Engine:
         for length in (7, 30, 90, 365):
             periods[str(length)] = aggregate(today-timedelta(days=length-1), today)
         start = today-timedelta(days=days-1)
-        history = [{"date": d.isoformat(), **self.data["days"].get(d.isoformat(), {"apps": {}, "sessions": 0, "longest": 0})}
+        coverage = self.data.get("coverage", {})
+        coverage_since = self.data.get("coverage_since")
+        history = [{"date": d.isoformat(), **self.data["days"].get(d.isoformat(), {"apps": {}, "sessions": 0, "longest": 0}),
+                    "coverage": coverage.get(d.isoformat(), {"observed": 0, "unavailable": 0}) if coverage_since and d.isoformat() >= coverage_since else None}
                    for d in (start+timedelta(days=i) for i in range(days))]
         return {"schema": 1, "started": self.data["started"], "recorded_since": recorded_day.isoformat(), "apps": self.data["apps"],
                 "periods": periods, "history": history,
                 "sessions": (self.data["sessions"][-499:] + [self.session] if self.session else self.data["sessions"][-500:]) if include_sessions else [],
                 "mixed_history": self.data.get("mixed_history", False),
                 "mode_changes": self.data.get("mode_changes", []),
+                "coverage_since": coverage_since,
                 "active": self.active, "session_seconds": self.session["seconds"] if self.session else 0}

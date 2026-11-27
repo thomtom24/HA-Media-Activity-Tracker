@@ -33,6 +33,9 @@ class Tracker:
         self.current_app = "Unknown app"
         self.condition_results = []
         self.snapshot = None
+        self.report_cache = {}
+        self.observed_states = {}
+        self.last_checkpoint = 0.0
         self.dirty = True
         self.stopped = False
         self.last_mono = time.monotonic()
@@ -65,6 +68,8 @@ class Tracker:
             raise ConfigEntryError("Media Activity history is unreadable; restore a backup before retrying") from err
         now = dt_util.utcnow()
         self.engine = Engine(data, dt_util.get_time_zone(self.hass.config.time_zone), now)
+        self.engine.data.setdefault("history_schema", 2)
+        self.engine.data.setdefault("coverage_since", now.astimezone(self.engine.tz).date().isoformat())
         mode = self.config.get("mode", "playing")
         previous = self.engine.data.get("last_mode")
         if previous is not None and previous != mode:
@@ -92,6 +97,7 @@ class Tracker:
         entities = {self.source}
         if not self.invalid_condition:
             entities.update(entity for entity, _ in self.condition_entities)
+        self.observed_states = {entity: self.hass.states.get(entity) for entity in entities}
         self.state_unsub = async_track_state_change_event(self.hass, entities, self.changed)
 
     @callback
@@ -113,14 +119,19 @@ class Tracker:
         if self.stopped:
             return
         now = dt_util.utcnow()
+        if event and self.engine.last <= event.time_fired <= now and (now-event.time_fired).total_seconds() < 5:
+            now = event.time_fired
         mono = time.monotonic()
         elapsed = max(0, mono-self.last_mono)
         self.last_mono = mono
         previous_active = self.engine.active
         previous_app = self.engine.app
-        event_id = event.data.get("entity_id") if event else None
+        if event:
+            self.observed_states[event.data["entity_id"]] = event.data.get("new_state")
+        else:
+            self.observed_states = {entity: self.hass.states.get(entity) for entity in self.observed_states}
         def state_for(entity_id):
-            return event.data.get("new_state") if entity_id == event_id else self.hass.states.get(entity_id)
+            return self.observed_states.get(entity_id)
         source = state_for(self.source)
         self.source_state = source.state if source else "unknown"
         attributes = source.attributes if source else {}
@@ -139,8 +150,9 @@ class Tracker:
         if elapsed > 120:
             # Do not infer playback across a long unobserved gap.
             elapsed = 0
+        observed = self.source_state not in ("unknown", "unavailable") and not self.invalid_condition and all(c["available"] for c in self.condition_results)
         self.engine.transition(now, self.source_state, attributes, allowed, mode, excluded,
-                               elapsed=elapsed, pause_timeout=self.config.get("pause_timeout", 30))
+                               elapsed=elapsed, pause_timeout=self.config.get("pause_timeout", 30), observed=observed)
         self.dirty |= previous_active or self.engine.active or previous_app != self.engine.app
         if self.invalid_condition:
             self.reason = "circular_condition"
@@ -160,6 +172,7 @@ class Tracker:
             self.reason = "app_excluded"
         else:
             self.reason = "source_not_active"
+        self.report_cache.clear()
         self.snapshot = self.report(1, include_sessions=False)
         async_dispatcher_send(self.hass, self.signal)
 
@@ -169,7 +182,7 @@ class Tracker:
         old = len(self.engine.data["sessions"])
         self.engine.prune(now, self.config.get("retention_days", 90))
         self.dirty |= old != len(self.engine.data["sessions"])
-        if self.dirty or self.store.write_failed:
+        if self.dirty or self.store.write_failed or time.monotonic()-self.last_checkpoint >= 300:
             self.checkpoint()
 
     @callback
@@ -177,9 +190,12 @@ class Tracker:
         # Snapshot on the event loop; serialise the independent copy in a worker.
         self.store.async_delay_save(lambda snapshot=deepcopy(self.engine.storage()): snapshot, 1)
         self.dirty = False
+        self.last_checkpoint = time.monotonic()
 
     @callback
     def report(self, days=366, *, include_sessions=True):
+        if include_sessions and days in self.report_cache:
+            return self.report_cache[days]
         aliases = {}
         for item in self.config.get("aliases", "").split(","):
             key, sep, label = item.partition("=")
@@ -188,16 +204,21 @@ class Tracker:
         result = self.engine.report(dt_util.utcnow(), days, settle=False, include_sessions=include_sessions)
         result["apps"] = {key: aliases.get(key.casefold(), aliases.get(name.casefold(), name))
                           for key, name in result["apps"].items()}
-        source = self.hass.states.get(self.source)
+        source = self.observed_states.get(self.source)
         key, name = app_identity(source.attributes if source else {})
         app = aliases.get(key.casefold(), aliases.get(name.casefold(), name))
-        return {**result, "name": self.entry.title, "source": self.source,
+        result = {**result, "name": self.entry.title, "source": self.source,
                 "state": self.source_state, "app": app, "reason": self.reason,
                 "mode": self.config.get("mode", "playing"),
                 "condition_results": self.condition_results,
                 "retention_days": self.config.get("retention_days", 90),
                 "storage_error": self.store.write_failed, "last_saved": self.store.last_success,
                 "timezone": self.hass.config.time_zone}
+        if include_sessions:
+            if len(self.report_cache) >= 3:
+                self.report_cache.clear()
+            self.report_cache[days] = result
+        return result
 
     async def shutdown(self, _event):
         if not self.stopped:

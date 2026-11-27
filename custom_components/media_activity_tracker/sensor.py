@@ -50,7 +50,9 @@ class ActivitySensor(SensorEntity):
             self._attr_state_class = SensorStateClass.MEASUREMENT
         if key in ("status",):
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
-        if self._attr_name.startswith("Playing time") and tracker.config.get("mode", "playing") != "playing":
+        if self._attr_name.startswith("Playing time") and tracker.engine.data.get("mixed_history"):
+            self._attr_name = self._attr_name.replace("Playing time", "Recorded activity time")
+        elif self._attr_name.startswith("Playing time") and tracker.config.get("mode", "playing") != "playing":
             self._attr_name = self._attr_name.replace("Playing time", {"app": "App activity time", "power": "Powered-on time"}.get(tracker.config.get("mode"), "Activity time"))
         self._attr_icon = "mdi:television-play"
 

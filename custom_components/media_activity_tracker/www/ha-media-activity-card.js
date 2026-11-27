@@ -4,10 +4,11 @@ const colors=["#5b8def","#e36272","#35ae99","#e8a340","#a180dc","#45a5c7","#d27f
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const csvSafe=s=>/^[\s\uFEFF]*[=+\-@]|^[\t\r\n]/.test(String(s))?"\'"+s:String(s);
 const normalise=c=>({...defaults,...c,period:["day","week","month","year"].includes(c.period)?c.period:"day",trend:["30","90","365"].includes(String(c.trend))?String(c.trend):"90",target:Math.max(0,Math.min(1440,Number(c.target)||0))});
+const trackerEntity=(h,c,id)=>{const states=h?.states||{},key=c?.tracker_entry_id||id;if(key)return Object.keys(states).find(k=>states[k].attributes?.tracker_entry_id===key);return c?.entity;};
 const formatTimestamp=(value,tz)=>{try{return new Date(value).toLocaleString(undefined,tz?{timeZone:tz}:{});}catch{return new Date(value).toLocaleString();}};
 const sum=o=>Object.values(o||{}).reduce((a,b)=>a+b,0);
 const duration=s=>{let m=Math.floor(Math.max(0,s||0)/60);return (m>=60?Math.floor(m/60)+"h ":"")+(m%60)+"m"};
-const color=k=>colors[Array.from(k).reduce((a,c)=>(a*31+c.charCodeAt(0))>>>0,0)%colors.length];
+const color=k=>{let hash=Array.from(String(k)).reduce((a,c)=>(a*31+c.charCodeAt(0))>>>0,0);return "hsl("+((hash*137.508)%360).toFixed(1)+" 58% 48%)";};
 const ranked=o=>Object.entries(o||{}).sort((a,b)=>b[1]-a[1]);
 const pct=(a,b)=>b?Math.round((a-b)/b*100):null;
 const date=d=>new Date(d+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"});
@@ -33,20 +34,20 @@ function chart(rows,apps,group=0){
 }
 class MediaActivityCard extends HTMLElement{
  constructor(){super();this.attachShadow({mode:"open"});this.request=0;this.shadowRoot.addEventListener("click",e=>this.handleClick(e));}
- setConfig(c){if(!c||typeof c.entity!=="string"||!c.entity.startsWith("sensor."))throw new Error("Select a Media Activity Tracker status sensor");this.config=normalise(c);this.period=this.config.period;this.trend=this.config.trend;this.data=null;this.error="";this.loading=false;this.request++;this.render();this.refresh();}
- set hass(h){this._hass=h;const v=h.states[this.config?.entity],sig=v?.attributes?.tracker_entry_id+":"+v?.last_changed+":"+v?.state;if(sig!==this.sig){this.sig=sig;this.refresh();}}
+ setConfig(c){if(!c||typeof c.entity!=="string"||!c.entity.startsWith("sensor."))throw new Error("Select a Media Activity Tracker status sensor");this.config=normalise(c);this.boundEntry=this.config.tracker_entry_id||null;this.period=this.config.period;this.trend=this.config.trend;this.data=null;this.error="";this.loading=false;this.request++;this.render();this.refresh();}
+ set hass(h){const previousUser=this._hass?.user?.id;this._hass=h;const entity=trackerEntity(h,this.config,this.boundEntry),v=h.states[entity],id=v?.attributes?.tracker_entry_id;if(previousUser!==undefined&&previousUser!==h.user?.id){this.request++;this.loading=false;this.data=null;this.render();}if(id)this.boundEntry=id;const sig=id+":"+entity+":"+v?.last_changed+":"+v?.state+":"+h.user?.id;if(sig!==this.sig){this.sig=sig;this.refresh();}}
  connectedCallback(){this.timer=setInterval(()=>this.refresh(),30000);this.refresh();}
  disconnectedCallback(){clearInterval(this.timer);this.request++;this.loading=false;}
  getCardSize(){return 8;}
  static getConfigElement(){return document.createElement("media-activity-card-editor");}
- static getStubConfig(hass){return {entity:Object.keys(hass.states).find(k=>hass.states[k].attributes.tracker_entry_id)||""};}
- async refresh(){if(!this.isConnected||!this.config||!this._hass||this.loading)return;const entry=this._hass.states[this.config.entity]?.attributes?.tracker_entry_id;if(!entry){this.data=null;this.error="Select an available Tracking status sensor.";this.render();return;}const id=++this.request;this.loading=true;try{const d=await this._hass.callWS({type:"media_activity_tracker/report",entry_id:entry,days:366});if(id!==this.request)return;if(d.schema!==1)throw new Error("Unsupported tracker API");this.data=d;this.error="";}catch(e){if(id===this.request){this.data=null;this.error=e.message||"Tracker unavailable";}}finally{if(id===this.request){this.loading=false;this.render();}}}
+ static getStubConfig(hass){const entity=Object.keys(hass.states).find(k=>hass.states[k].attributes.tracker_entry_id)||"";return {entity,tracker_entry_id:hass.states[entity]?.attributes?.tracker_entry_id};}
+ async refresh(){if(!this.isConnected||!this.config||!this._hass||this.loading)return;const entity=trackerEntity(this._hass,this.config,this.boundEntry),entry=this._hass.states[entity]?.attributes?.tracker_entry_id;if(!entry){this.data=null;this.error="Select an available Tracking status sensor.";this.render();return;}const id=++this.request;this.loading=true;try{const d=await this._hass.callWS({type:"media_activity_tracker/report",entry_id:entry,days:366});if(id!==this.request)return;if(d.schema!==1)throw new Error("Unsupported tracker API");this.data=d;this.error="";}catch(e){if(id===this.request){this.data=null;this.error=e.message||"Tracker unavailable";}}finally{if(id===this.request){this.loading=false;this.render();}}}
  content(full=false){
  const d=this.data,c=this.config;if(!d)return '<p class="muted" role="status">'+esc(this.error||"Loading media activity…")+"</p>"+(this.error?'<button data-action="retry">Retry</button>':"");
  const p=d.periods[this.period]||d.periods.day,top=ranked(p.apps),total=p.seconds,delta=p.comparison_seconds===null?null:pct(p.comparison_seconds??total,p.previous_seconds),mode={playing:"Playing time",app:"App activity",power:"Powered-on time"}[d.mode]||"Activity",apps=d.apps;
  const recorded=d.history.filter(r=>!d.started||r.date>=(d.recorded_since||d.started.slice(0,10))),busy=recorded.reduce((a,b)=>!a||sum(b.apps)>sum(a.apps)?b:a,null),avg7=d.periods["7"].seconds/Math.max(1,d.periods["7"].observed_days??7),avg30=d.periods["30"].seconds/Math.max(1,d.periods["30"].observed_days??30),change=d.mixed_history?null:pct(avg7,avg30);
  let s='<header><div><h2>'+esc(c.title||d.name)+'</h2><div class="muted">'+esc(mode)+" · Since "+esc((d.recorded_since||new Date(d.started).toLocaleDateString()))+'</div></div><div class="status '+(d.active?"active":"")+'">'+esc(d.active?"● Tracking":({"condition_not_met":"Conditions unmet","source_unavailable":"Source unavailable","source_off":"Source off","app_excluded":"App excluded","paused":"Paused","buffering":"Buffering","source_not_active":"Not active","circular_condition":"Circular condition"}[d.reason]||d.state))+'</div></header>';
- if(d.mixed_history)s+='<p role="status" class="muted">History includes different sources or tracking modes; period comparisons are disabled.</p>';if(d.storage_error)s+='<p role="alert">History save failed; check Home Assistant storage and logs.</p>';if(this.error)s+='<p role="alert" class="muted">Last known data — '+esc(this.error)+'</p>';
+ if(d.coverage_since){const rows=recorded.slice(-7),known=rows.filter(r=>r.coverage),observed=known.reduce((a,r)=>a+r.coverage.observed,0),unavailable=known.reduce((a,r)=>a+r.coverage.unavailable,0);s+='<p class="muted">Source observed: '+esc(duration(observed))+' · unavailable: '+esc(duration(unavailable))+' (last 7 days; gaps may also reflect HA downtime).</p>';}if(d.mixed_history)s+='<p role="status" class="muted">History includes different sources or tracking modes; period comparisons are disabled.</p>';if(d.storage_error)s+='<p role="alert">History save failed; check Home Assistant storage and logs.</p>';if(this.error)s+='<p role="alert" class="muted">Last known data — '+esc(this.error)+'</p>';
  if(c.live||full)s+='<div class="live"><div class="app-icon" style="background:'+color(d.app||"?")+'">'+esc((d.app||"?").slice(0,1).toUpperCase())+'</div><div><strong>'+esc(d.app)+'</strong><div class="muted">'+esc(d.active?"Current session · "+duration(d.session_seconds):d.state==="paused"?"Paused · "+duration(d.session_seconds):"Not tracking")+'</div></div></div>';
  s+=tabs([["day","Today"],["week","Week"],["month","Month"],["year","Year"]],this.period,"period");
  if(c.summary||full){s+='<div class="kpis">'+kpi(d.mixed_history?"Recorded activity (mixed)":mode,duration(total),delta===null?"No comparable prior activity":(delta>0?"+":"")+delta+"% vs equivalent completed time")+kpi("Daily average",duration(total/Math.max(1,p.observed_days??p.days)),(p.observed_days??p.days)+" recorded calendar "+((p.observed_days??p.days)===1?"day":"days"))+kpi("Sessions",p.sessions,"Daily session count")+kpi("Longest session",duration(p.longest),"Single-day contribution")+'</div>';if(Number(c.target)>0){let target=Number(c.target)*60,today=d.periods.day.seconds;s+=section("Daily target",line(duration(today),duration(target))+'<div class="bar"><span style="width:'+Math.min(100,today/target*100)+'%;background:var(--primary-color)"></span></div>');}}
@@ -75,7 +76,7 @@ class MediaActivityCard extends HTMLElement{
      this.shadowRoot.innerHTML="<style>"+style+"</style><ha-card></ha-card><dialog></dialog>";
    }
    const main=this.shadowRoot.querySelector("ha-card"),next=this.content();if(main.innerHTML!==next){const active=this.shadowRoot.activeElement,focus=active?.dataset?{...active.dataset}:null;main.innerHTML=next;if(focus){const target=[...main.querySelectorAll("button")].find(b=>Object.entries(focus).every(([k,v])=>b.dataset[k]===v));target?.focus({preventScroll:true});}}
-   const dialog=this.shadowRoot.querySelector("dialog");
+   const dialog=this.shadowRoot.querySelector("dialog");dialog.setAttribute("aria-label","Full media activity statistics");
    if(dialog.open){const next=this.content(true),scroll=dialog.scrollTop;if(dialog.innerHTML!==next){dialog.innerHTML=next;dialog.scrollTop=scroll;}}
  }
  handleClick(e){
@@ -92,7 +93,7 @@ class MediaActivityCard extends HTMLElement{
    else if(action==="retry")this.refresh();
    else if(action==="more-sessions"){this.sessionLimit=Math.min(500,(this.sessionLimit||30)+30);this.render();}
  }
- async exportData(){try{const entry=this._hass.states[this.config.entity].attributes.tracker_entry_id,d=await this._hass.callWS({type:"media_activity_tracker/report",entry_id:entry,days:3660}),safe=csvSafe,rows=[["date","application","seconds"],...d.history.flatMap(r=>Object.entries(r.apps).map(([k,v])=>[r.date,safe(d.apps[k]||k),Math.round(v)]))],csv=rows.map(r=>r.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(",")).join("\n"),url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})),a=document.createElement("a");a.href=url;a.download="media-activity.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){this.error="Export failed: "+(e.message||"unknown error");this.render();}}
+ async exportData(){try{const entity=trackerEntity(this._hass,this.config,this.boundEntry),entry=this._hass.states[entity].attributes.tracker_entry_id,d=await this._hass.callWS({type:"media_activity_tracker/report",entry_id:entry,days:3660}),safe=csvSafe,rows=[["date","application","seconds"],...d.history.flatMap(r=>Object.entries(r.apps).map(([k,v])=>[r.date,safe(d.apps[k]||k),Math.round(v)]))],csv=rows.map(r=>r.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(",")).join("\n"),url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})),a=document.createElement("a");a.href=url;a.download="media-activity.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){this.error="Export failed: "+(e.message||"unknown error");this.render();}}
 }
 class MediaActivityEditor extends HTMLElement{
  constructor(){super();this.attachShadow({mode:"open"});this.shadowRoot.addEventListener("change",e=>this.handleChange(e));}
@@ -103,7 +104,7 @@ class MediaActivityEditor extends HTMLElement{
  }
  handleChange(e){
    const t=e.target;if(!t.name)return;
-   this.config={...this.config,[t.name]:t.type==="checkbox"?t.checked:t.type==="number"?Math.max(0,Math.min(1440,Number(t.value)||0)):t.value};
+   this.config={...this.config,[t.name]:t.type==="checkbox"?t.checked:t.type==="number"?Math.max(0,Math.min(1440,Number(t.value)||0)):t.value};if(t.name==="entity")this.config.tracker_entry_id=this._hass?.states[t.value]?.attributes?.tracker_entry_id;else if(!this.config.tracker_entry_id)this.config.tracker_entry_id=this._hass?.states[this.config.entity]?.attributes?.tracker_entry_id;
    this.dispatchEvent(new CustomEvent("config-changed",{detail:{config:this.config},bubbles:true,composed:true}));
  }
 }

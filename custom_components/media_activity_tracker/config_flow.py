@@ -17,9 +17,8 @@ def resolve(hass, ref):
     if "." in ref:
         return ref
     # Registry IDs remain stable across entity renames.
-    for entry in registry.entities.values():
-        if entry.id == ref:
-            return entry.entity_id
+    if entry := registry.async_get(ref):
+        return entry.entity_id
     return f"sensor.media_activity_missing_{ref}"
 
 

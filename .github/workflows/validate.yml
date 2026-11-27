@@ -12,6 +12,7 @@ jobs:
           python-version: '3.13'
       - run: python -m compileall -q custom_components
       - run: python tests/check_release.py
+      - run: python tests/benchmark_history.py
       - run: python -m unittest discover -s tests -v
       - run: pip install ruff
       - run: ruff check --select E9,F63,F7,F82 custom_components tests
