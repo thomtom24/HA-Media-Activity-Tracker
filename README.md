@@ -3,7 +3,7 @@
 Local, per-media-player playback analytics for Home Assistant 2025.12+. Includes the Media Activity Card from v0.2.0; no second download required.
 
 ## Install
-Add this repository as an Integration custom repository in HACS, install, restart Home Assistant, then add Media Activity Tracker in Settings → Devices & services. Choose one player per instance. Add another instance for another player. No YAML required in standard storage-mode dashboards.
+Add this repository as an Integration custom repository in HACS, install, restart Home Assistant, then add Media Activity Tracker in Settings → Devices & services. Choose one player per instance. Add another instance for another player. From v0.2.1, Media Activity Tracker is classified as a service and appears in the Integrations list rather than Helpers. Restart Home Assistant after updating; do not remove or recreate existing tracker entries. No YAML required in standard storage-mode dashboards.
 
 ## Tracking
 Playback (default) counts only the reported playing state, excluding common home screens. App activity counts an identified foreground app even when idle/paused; powered-on time counts active source states including menus. Labels always reflect the configured mode; these are device activity metrics, not verified human viewing. App ID is preferred, with name and source fallbacks. Unknown apps are counted in playback/power modes. Configure comma-separated exclusions using app names or id: identifiers. Additional conditions can use any HA entity, raw state equality/inequality or strict numeric above/below, AND/OR. Unknown/unavailable inputs never satisfy a comparison; with OR another valid condition may still permit tracking. Use one comparison per entity. Options can be edited after setup. Wi-Fi trackers and source state updates can lag.
@@ -37,9 +37,9 @@ trend: '90'
 ### Upgrade from the standalone v0.1.1 card
 
 1. Back up Home Assistant. Keep the tracker integration and its config entries installed; do **not** remove them (removal deletes that instance's data).
-2. Upgrade the **tracker** to v0.2.0. Uninstall only the old **Media Activity Card** dashboard repository in HACS (or remove its manually installed resource). Keep your dashboard cards and YAML unchanged.
+2. Upgrade the **tracker** to v0.2.1 or later. Uninstall only the old **Media Activity Card** dashboard repository in HACS (or remove its manually installed resource). Keep your dashboard cards and YAML unchanged.
 3. In Settings → Dashboards → Resources, confirm the old standalone card resource is gone; remove only that resource if it remains. Restart HA.
-4. Refresh the browser or reset the Companion App frontend cache. The bundled module should be registered as `/media_activity_tracker/ha-media-activity-card.js?v=0.2.0`. Existing card configurations and tracker history use the same identifiers.
+4. Refresh the browser or reset the Companion App frontend cache. The bundled module should be registered as `/media_activity_tracker/ha-media-activity-card.js?v=0.2.1`. Existing card configurations and tracker history use the same identifiers.
 5. If the card does not appear, add the bundled URL as a JavaScript module in Resources, reload resources and refresh. Do not register both old and bundled modules.
 
 The integration does not automatically delete the previous standalone resource, and skips bundled resource creation while a known old resource is present. For YAML-managed resources, replace the old URL with the bundled URL in your existing resources list (type: module); automatic registration is only for storage-mode resources. On future updates use the new version query parameter for YAML resources. If rolling back to v0.1.1, remove the bundled resource and reinstall the standalone card without removing tracker entries.

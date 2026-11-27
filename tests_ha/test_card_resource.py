@@ -76,7 +76,9 @@ class ResourceTests(unittest.IsolatedAsyncioTestCase):
 
     def test_versions_and_asset(self):
         root = Path(__file__).resolve().parents[1] / "custom_components" / "media_activity_tracker"
-        self.assertEqual(json.loads((root / "manifest.json").read_text())["version"], CARD_VERSION)
+        manifest = json.loads((root / "manifest.json").read_text())
+        self.assertEqual(manifest["version"], CARD_VERSION)
+        self.assertEqual(manifest["integration_type"], "service")
         self.assertIn("Media Activity Card " + CARD_VERSION, (root / "www" / "ha-media-activity-card.js").read_text())
 
     async def test_real_ha_http_serves_only_bundled_file(self):
