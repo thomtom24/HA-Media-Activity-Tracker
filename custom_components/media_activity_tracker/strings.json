@@ -18,7 +18,8 @@
           "condition_entities": "Additional entities (optional)",
           "excluded": "Excluded apps (optional)",
           "aliases": "Application aliases (optional, id:12=Netflix)",
-          "app_sensors": "Optional app sensors (comma-separated names or id: identifiers)"
+          "app_sensors": "Optional app sensors (comma-separated names or id: identifiers)",
+          "retention_days": "Detailed session retention (days, 1–3650)"
         }
       },
       "condition": {
@@ -48,7 +49,8 @@
           "condition_entities": "Additional entities (optional)",
           "excluded": "Excluded apps (optional)",
           "aliases": "Application aliases (optional, id:12=Netflix)",
-          "app_sensors": "Optional app sensors (comma-separated names or id: identifiers)"
+          "app_sensors": "Optional app sensors (comma-separated names or id: identifiers)",
+          "retention_days": "Detailed session retention (days, 1–3650)"
         }
       },
       "condition": {

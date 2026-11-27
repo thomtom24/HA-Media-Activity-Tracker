@@ -6,10 +6,10 @@ from urllib.parse import urlsplit
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.components.lovelace.resources import ResourceStorageCollection
-from homeassistant.exceptions import HomeAssistantError
 
 _LOGGER = logging.getLogger(__name__)
 CARD_VERSION = "0.2.0"
+REGISTERED = "media_activity_tracker.card_registered"
 CARD_FILENAME = "ha-media-activity-card.js"
 CARD_PATH = f"/media_activity_tracker/{CARD_FILENAME}"
 CARD_URL = f"{CARD_PATH}?v={CARD_VERSION}"
@@ -22,19 +22,22 @@ LEGACY_PATHS = {
 
 def resource_path(url):
     """Compare resource paths independently of query strings and fragments."""
-    return urlsplit(url).path
+    return urlsplit(url).path.rstrip("/")
 
 
 async def async_register_card(hass):
     """Expose only the card file, then safely register a storage-mode resource."""
+    if hass.data.get(REGISTERED):
+        return
     try:
         await hass.http.async_register_static_paths([
             StaticPathConfig(CARD_PATH, str(Path(__file__).parent / "www" / CARD_FILENAME), False)
         ])
-    except (HomeAssistantError, OSError, RuntimeError, ValueError):
+    except Exception:
         _LOGGER.exception("Unable to serve Media Activity Card; tracking remains available")
         return
 
+    hass.data[REGISTERED] = True
     lovelace = hass.data.get(LOVELACE_DATA)
     resources = getattr(lovelace, "resources", None)
     if not isinstance(resources, ResourceStorageCollection):
@@ -55,13 +58,13 @@ async def async_ensure_resource(resources):
         _LOGGER.warning("Dashboard resources not loaded; leaving them untouched")
         return
     items = resources.async_items()
-    if any(resource_path(item["url"]).lower() in LEGACY_PATHS for item in items):
+    if any(resource_path(item.get("url", "")).lower() in LEGACY_PATHS for item in items):
         _LOGGER.warning(
             "Standalone Media Activity Card resource found. Uninstall the old card, "
             "remove its old dashboard resource if present and restart HA to activate the bundled card"
         )
         return
-    ours = [item for item in items if resource_path(item["url"]) == CARD_PATH]
+    ours = [item for item in items if resource_path(item.get("url", "")) == CARD_PATH]
     if not ours:
         await resources.async_create_item({"res_type": "module", "url": CARD_URL})
         return

@@ -59,7 +59,7 @@ class ActivitySensor(SensorEntity):
         report = self.tracker.report(1)
         p = report["periods"].get(self.period, {})
         if self.metric == "average":
-            value = p["seconds"] / p["days"] / 60
+            value = p["seconds"] / max(1, p.get("observed_days", p["days"])) / 60
         elif self.metric == "top":
             top = max(p["apps"], key=p["apps"].get, default=None)
             value = report["apps"].get(top, "None")
@@ -74,7 +74,8 @@ class ActivitySensor(SensorEntity):
         self._attr_native_value = round(value, 2) if isinstance(value, float) else value
         if self.key == "status":
             self._attr_extra_state_attributes = {"tracker_entry_id": self.tracker.entry.entry_id,
-                "source_entity": report["source"], "source_state": report["state"], "tracking_mode": report["mode"]}
+                "source_entity": report["source"], "source_state": report["state"], "tracking_mode": report["mode"],
+                "condition_results": report["condition_results"], "session_retention_days": report["retention_days"]}
         self.async_write_ha_state()
 
 class AppSensor(ActivitySensor):
