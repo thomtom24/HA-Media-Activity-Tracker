@@ -82,3 +82,43 @@ class TestEngine(unittest.TestCase):
         self.e.prune(self.t+timedelta(days=3), 2)
         self.assertEqual(self.e.data["sessions"], [])
         self.assertEqual(self.e.data["days"]["2026-11-26"]["apps"]["id:11703"], 300)
+
+    def test_clock_jump_does_not_invent_activity(self):
+        self.change(0,"playing")
+        self.e.transition(self.t+timedelta(hours=3),"playing",self.a,True,"playing",elapsed=1)
+        self.assertEqual(self.e.report(self.t+timedelta(hours=3))["periods"]["month"]["seconds"],0)
+
+    def test_power_exclusion(self):
+        self.assertFalse(m.qualifies("on",self.a,"power",{"id:11703"}))
+
+    def test_paused_timeout(self):
+        self.change(0,"playing")
+        self.change(5,"paused")
+        self.change(40,"paused")
+        self.assertIsNone(self.e.session)
+
+    def test_id_fallback(self):
+        self.change(0,"playing")
+        self.change(1,"playing",{"app_name":"BBC iPlayer"})
+        self.change(2,"off")
+        self.assertEqual(self.e.data["days"]["2026-11-26"]["apps"],{"id:11703":120})
+
+    def test_observation_coverage(self):
+        self.e.transition(self.t,"off",self.a,True,"playing",observed=True)
+        self.e.transition(self.t+timedelta(minutes=5),"unavailable",self.a,True,"playing",observed=False)
+        self.e.transition(self.t+timedelta(minutes=7),"off",self.a,True,"playing",observed=True)
+        self.assertEqual(self.e.data["coverage"]["2026-11-26"],{"observed":300,"unavailable":120})
+
+    def test_lord_howe_fractional_dst(self):
+        tz=ZoneInfo("Australia/Lord_Howe")
+        start=datetime(2026,10,4,0,0,tzinfo=tz)
+        end=datetime(2026,10,5,0,0,tzinfo=tz)
+        e=m.Engine(None,tz,start)
+        e.transition(start,"playing",self.a,True,"playing")
+        e.settle(end)
+        self.assertAlmostEqual(e.data["days"]["2026-10-04"]["apps"]["id:11703"],23.5*3600,places=3)
+
+    def test_id_exclusion_when_id_disappears(self):
+        self.change(0,"playing")
+        self.e.transition(self.t+timedelta(minutes=1),"playing",{"app_name":"BBC iPlayer"},True,"playing",{"id:11703"})
+        self.assertFalse(self.e.active)

@@ -2,10 +2,11 @@
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.const import UnitOfTime
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.core import callback
 from homeassistant.util import slugify
 from .const import DOMAIN
+from .config_values import app_list
 
 SENSORS = {
     "today": ("Playing time today", "day", "seconds"),
@@ -29,7 +30,7 @@ SENSORS = {
 async def async_setup_entry(hass, entry, async_add_entities):
     tracker = entry.runtime_data
     entities = [ActivitySensor(tracker, key, spec) for key, spec in SENSORS.items()]
-    for app in dict.fromkeys(a.strip() for a in tracker.config.get("app_sensors", "").split(",") if a.strip()):
+    for app in app_list(tracker.config.get("app_sensors", [])):
         for period in ("day", "week", "month"):
             entities.append(AppSensor(tracker, app, period))
     async_add_entities(entities)
@@ -48,6 +49,18 @@ class ActivitySensor(SensorEntity):
             self._attr_device_class = SensorDeviceClass.DURATION
             self._attr_native_unit_of_measurement = UnitOfTime.MINUTES
             self._attr_state_class = SensorStateClass.MEASUREMENT
+        if key == "status":
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
+            self._attr_device_class = SensorDeviceClass.ENUM
+            self._attr_options = ["initializing", "tracking", "condition_not_met", "source_unavailable", "source_off", "paused", "buffering", "app_excluded", "source_not_active", "circular_condition"]
+        if self._attr_name.startswith("Playing time") and tracker.engine.data.get("mixed_history"):
+            self._attr_name = self._attr_name.replace("Playing time", "Recorded activity time")
+        elif self._attr_name.startswith("Playing time") and tracker.config.get("mode", "playing") != "playing":
+            self._attr_name = self._attr_name.replace("Playing time", {"app": "App activity time", "power": "Powered-on time"}.get(tracker.config.get("mode"), "Activity time"))
+        if key in SENSORS:
+            mode = "mixed" if tracker.engine.data.get("mixed_history") else tracker.config.get("mode", "playing")
+            self._attr_translation_key = f"{key}_{mode}" if key in ("today", "week", "month", "year") and mode != "playing" else key
+            del self._attr_name
         self._attr_icon = "mdi:television-play"
 
     async def async_added_to_hass(self):
@@ -56,7 +69,7 @@ class ActivitySensor(SensorEntity):
 
     @callback
     def updated(self):
-        report = self.tracker.report(1)
+        report = self.tracker.snapshot or self.tracker.report(1, include_sessions=False)
         p = report["periods"].get(self.period, {})
         if self.metric == "average":
             value = p["seconds"] / max(1, p.get("observed_days", p["days"])) / 60
@@ -75,7 +88,9 @@ class ActivitySensor(SensorEntity):
         if self.key == "status":
             self._attr_extra_state_attributes = {"tracker_entry_id": self.tracker.entry.entry_id,
                 "source_entity": report["source"], "source_state": report["state"], "tracking_mode": report["mode"],
-                "condition_results": report["condition_results"], "session_retention_days": report["retention_days"]}
+                "condition_results": report["condition_results"], "session_retention_days": report["retention_days"],
+                "storage_error": report["storage_error"], "last_saved": report["last_saved"],
+                "mixed_history": report["mixed_history"]}
         self.async_write_ha_state()
 
 class AppSensor(ActivitySensor):
@@ -88,8 +103,8 @@ class AppSensor(ActivitySensor):
 
     @callback
     def updated(self):
-        report = self.tracker.report(1)
+        report = self.tracker.snapshot or self.tracker.report(1, include_sessions=False)
         seconds = sum(v for k, v in report["periods"][self.period]["apps"].items()
-                      if self.app.casefold() in (k.casefold(), report["apps"].get(k, "").casefold()))
+                      if self.app.casefold() in (k.casefold(), report["apps"].get(k, "").casefold(), report.get("raw_apps", {}).get(k, "").casefold()))
         self._attr_native_value = round(seconds / 60, 2)
         self.async_write_ha_state()

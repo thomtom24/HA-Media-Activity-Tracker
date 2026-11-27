@@ -17,3 +17,15 @@ test("duplicate module does not register card or editor twice",()=>{
  assert.equal(registry.get("media-activity-card-editor"),oldEditor);
  assert.equal(context.window.customCards.filter(c=>c.type==="media-activity-card").length,1);
 });
+
+test("protects spreadsheet formulas including leading whitespace",()=>{
+ assert.equal(vm.runInContext('csvSafe("  =1+1")',context),"'  =1+1");
+ assert.equal(vm.runInContext('csvSafe("Netflix")',context),"Netflix");
+});
+test("normalises unsupported card settings",()=>{
+ assert.equal(vm.runInContext('normalise({period:"bad",trend:"bad",target:-20}).period',context),"day");
+ assert.equal(vm.runInContext('normalise({target:-20}).target',context),0);
+});
+test("stable tracker identity survives a sensor rename",()=>{
+ assert.equal(vm.runInContext('trackerEntity({states:{"sensor.new":{attributes:{tracker_entry_id:"abc"}}}},{entity:"sensor.old",tracker_entry_id:"abc"})',context),"sensor.new");
+});

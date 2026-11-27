@@ -1,0 +1,19 @@
+name: Bug report
+description: Report a reproducible problem
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: HA and tracker versions
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction and expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Redacted diagnostics and logs (no activity history, tokens or identifiers)

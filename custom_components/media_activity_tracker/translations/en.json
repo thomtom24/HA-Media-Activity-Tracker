@@ -11,15 +11,16 @@
       },
       "settings": {
         "title": "Tracking settings",
-        "description": "Optional conditions restrict when activity is recorded. Exclusions are comma-separated app names or id: identifiers.",
+        "description": "Optional conditions restrict tracking. Add each application name or id: identifier separately. Aliases pair an identifier with a display name.",
         "data": {
           "mode": "Tracking mode",
           "logic": "Combine conditions (and/or)",
           "condition_entities": "Additional entities (optional)",
           "excluded": "Excluded apps (optional)",
-          "aliases": "Application aliases (optional, id:12=Netflix)",
-          "app_sensors": "Optional app sensors (comma-separated names or id: identifiers)",
-          "retention_days": "Detailed session retention (days, 1–3650)"
+          "aliases": "Application aliases (optional)",
+          "app_sensors": "Optional app sensors (names or id: identifiers)",
+          "retention_days": "Detailed session retention (days, 1–3650)",
+          "pause_timeout": "End paused session after (minutes, 1–1440)"
         }
       },
       "condition": {
@@ -29,28 +30,46 @@
           "operator": "Comparison",
           "value": "Required state or numeric threshold"
         }
+      },
+      "reconfigure": {
+        "title": "Replace media player",
+        "description": "Choose a replacement source. Existing history and tracker sensor IDs are kept. For a fresh history, add a separate tracker instead.",
+        "data": {
+          "entity": "Replacement media player",
+          "retain_history": "Retain existing history"
+        }
       }
     },
     "error": {
-      "invalid_number": "Enter a finite number."
+      "invalid_number": "Enter a finite number.",
+      "circular_condition": "Tracker sensors cannot be used as tracking conditions.",
+      "too_many_conditions": "Choose at most 20 conditions.",
+      "invalid_value": "Enter a non-empty value up to 255 characters.",
+      "invalid_name": "Enter a name up to 128 characters.",
+      "invalid_text": "Use unique, non-empty application names/aliases up to 255 characters, at most 100 exclusions/aliases and 40 app sensor sets.",
+      "too_many_apps": "Choose at most 40 application sensor sets.",
+      "already_configured": "This player is already tracked.",
+      "confirm_history": "Confirm that existing history will be retained, or cancel and create a separate tracker."
     },
     "abort": {
-      "already_configured": "This media player is already tracked."
+      "already_configured": "This media player is already tracked.",
+      "reconfigure_successful": "Media player updated."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Tracking settings",
-        "description": "Optional conditions restrict when activity is recorded. Exclusions are comma-separated app names or id: identifiers.",
+        "description": "Optional conditions restrict tracking. Add each application name or id: identifier separately. Aliases pair an identifier with a display name.",
         "data": {
           "mode": "Tracking mode",
           "logic": "Combine conditions (and/or)",
           "condition_entities": "Additional entities (optional)",
           "excluded": "Excluded apps (optional)",
-          "aliases": "Application aliases (optional, id:12=Netflix)",
-          "app_sensors": "Optional app sensors (comma-separated names or id: identifiers)",
-          "retention_days": "Detailed session retention (days, 1–3650)"
+          "aliases": "Application aliases (optional)",
+          "app_sensors": "Optional app sensors (names or id: identifiers)",
+          "retention_days": "Detailed session retention (days, 1–3650)",
+          "pause_timeout": "End paused session after (minutes, 1–1440)"
         }
       },
       "condition": {
@@ -63,7 +82,112 @@
       }
     },
     "error": {
-      "invalid_number": "Enter a finite number."
+      "invalid_number": "Enter a finite number.",
+      "circular_condition": "Tracker sensors cannot be used as tracking conditions.",
+      "too_many_conditions": "Choose at most 20 conditions.",
+      "invalid_value": "Enter a non-empty value up to 255 characters.",
+      "invalid_name": "Enter a name up to 128 characters.",
+      "invalid_text": "Use unique, non-empty application names/aliases up to 255 characters, at most 100 exclusions/aliases and 40 app sensor sets.",
+      "too_many_apps": "Choose at most 40 application sensor sets.",
+      "already_configured": "This player is already tracked.",
+      "confirm_history": "Confirm that existing history will be retained, or cancel and create a separate tracker."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "today": {
+        "name": "Playing time today"
+      },
+      "week": {
+        "name": "Playing time this week"
+      },
+      "month": {
+        "name": "Playing time this month"
+      },
+      "year": {
+        "name": "Playing time this year"
+      },
+      "average_7": {
+        "name": "Daily average 7 days"
+      },
+      "average_30": {
+        "name": "Daily average 30 days"
+      },
+      "average_90": {
+        "name": "Daily average 90 days"
+      },
+      "top_today": {
+        "name": "Most used app today"
+      },
+      "top_week": {
+        "name": "Most used app this week"
+      },
+      "top_month": {
+        "name": "Most used app this month"
+      },
+      "sessions": {
+        "name": "Sessions today"
+      },
+      "longest": {
+        "name": "Longest session today"
+      },
+      "session": {
+        "name": "Current session duration"
+      },
+      "current_app": {
+        "name": "Current app"
+      },
+      "status": {
+        "name": "Tracking status",
+        "state": {
+          "initializing": "Initialising",
+          "tracking": "Tracking",
+          "condition_not_met": "Conditions unmet",
+          "source_unavailable": "Source unavailable",
+          "source_off": "Source off",
+          "paused": "Paused",
+          "buffering": "Buffering",
+          "app_excluded": "App excluded",
+          "source_not_active": "Source not active",
+          "circular_condition": "Circular condition"
+        }
+      },
+      "today_app": {
+        "name": "App activity time today"
+      },
+      "today_power": {
+        "name": "Powered-on time today"
+      },
+      "today_mixed": {
+        "name": "Recorded activity time today"
+      },
+      "week_app": {
+        "name": "App activity time this week"
+      },
+      "week_power": {
+        "name": "Powered-on time this week"
+      },
+      "week_mixed": {
+        "name": "Recorded activity time this week"
+      },
+      "month_app": {
+        "name": "App activity time this month"
+      },
+      "month_power": {
+        "name": "Powered-on time this month"
+      },
+      "month_mixed": {
+        "name": "Recorded activity time this month"
+      },
+      "year_app": {
+        "name": "App activity time this year"
+      },
+      "year_power": {
+        "name": "Powered-on time this year"
+      },
+      "year_mixed": {
+        "name": "Recorded activity time this year"
+      }
     }
   }
 }

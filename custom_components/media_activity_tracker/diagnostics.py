@@ -7,4 +7,5 @@ async def async_get_config_entry_diagnostics(hass, entry):
             "recorded_days": len(tracker.engine.data["days"]),
             "condition_results": tracker.condition_results,
             "session_retention_days": tracker.config.get("retention_days", 90),
-            "active": tracker.engine.active}
+            "active": tracker.engine.active, "storage_error": tracker.store.write_failed,
+            "last_saved": tracker.store.last_success, "mixed_history": tracker.engine.data.get("mixed_history", False)}

@@ -1,0 +1,99 @@
+{
+  "entity": {
+    "sensor": {
+      "today": {
+        "name": "Temps de lecture aujourd’hui"
+      },
+      "week": {
+        "name": "Temps de lecture cette semaine"
+      },
+      "month": {
+        "name": "Temps de lecture ce mois-ci"
+      },
+      "year": {
+        "name": "Temps de lecture cette année"
+      },
+      "average_7": {
+        "name": "Moyenne quotidienne sur 7 jours"
+      },
+      "average_30": {
+        "name": "Moyenne quotidienne sur 30 jours"
+      },
+      "average_90": {
+        "name": "Moyenne quotidienne sur 90 jours"
+      },
+      "top_today": {
+        "name": "Application la plus utilisée aujourd’hui"
+      },
+      "top_week": {
+        "name": "Application la plus utilisée cette semaine"
+      },
+      "top_month": {
+        "name": "Application la plus utilisée ce mois-ci"
+      },
+      "sessions": {
+        "name": "Sessions aujourd’hui"
+      },
+      "longest": {
+        "name": "Session la plus longue aujourd’hui"
+      },
+      "session": {
+        "name": "Durée de la session actuelle"
+      },
+      "current_app": {
+        "name": "Application actuelle"
+      },
+      "status": {
+        "name": "État du suivi",
+        "state": {
+          "initializing": "Initialisation",
+          "tracking": "Suivi actif",
+          "condition_not_met": "Conditions non remplies",
+          "source_unavailable": "Source indisponible",
+          "source_off": "Source éteinte",
+          "paused": "En pause",
+          "buffering": "Mise en mémoire tampon",
+          "app_excluded": "Application exclue",
+          "source_not_active": "Source inactive",
+          "circular_condition": "Condition circulaire"
+        }
+      },
+      "today_app": {
+        "name": "Temps d’activité des applications aujourd’hui"
+      },
+      "today_power": {
+        "name": "Temps de mise sous tension aujourd’hui"
+      },
+      "today_mixed": {
+        "name": "Temps d’activité enregistré aujourd’hui"
+      },
+      "week_app": {
+        "name": "Temps d’activité des applications cette semaine"
+      },
+      "week_power": {
+        "name": "Temps de mise sous tension cette semaine"
+      },
+      "week_mixed": {
+        "name": "Temps d’activité enregistré cette semaine"
+      },
+      "month_app": {
+        "name": "Temps d’activité des applications ce mois-ci"
+      },
+      "month_power": {
+        "name": "Temps de mise sous tension ce mois-ci"
+      },
+      "month_mixed": {
+        "name": "Temps d’activité enregistré ce mois-ci"
+      },
+      "year_app": {
+        "name": "Temps d’activité des applications cette année"
+      },
+      "year_power": {
+        "name": "Temps de mise sous tension cette année"
+      },
+      "year_mixed": {
+        "name": "Temps d’activité enregistré cette année"
+      }
+    }
+  }
+}
