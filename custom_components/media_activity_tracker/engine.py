@@ -37,9 +37,11 @@ def qualifies(state, attributes, mode, excluded=()):
     key, name = app_identity(attributes)
     if state in INACTIVE:
         return False
+    if name.casefold() in excluded or key.casefold() in excluded:
+        return False
     if mode == "power":
         return state in ACTIVE
-    if name.casefold() in HOME or name.casefold() in excluded or key.casefold() in excluded:
+    if name.casefold() in HOME:
         return False
     if mode == "playing":
         return state == "playing"
@@ -53,6 +55,7 @@ class Engine:
         self.tz = tz
         self.data = data or {"days": {}, "apps": {}, "sessions": [], "started": now.isoformat()}
         self.last = now.astimezone(UTC)
+        self.suspended_since = None
         self.active = False
         self.app = None
         self.session = None
@@ -60,13 +63,20 @@ class Engine:
     def day(self, day):
         return self.data["days"].setdefault(day, {"apps": {}, "sessions": 0, "longest": 0.0})
 
-    def settle(self, now):
+    def settle(self, now, elapsed=None):
         """Account for previous state up to now, splitting at local midnight."""
         end = now.astimezone(UTC)
         if end <= self.last:
+            if end < self.last:
+                self.finish()
+                self.last = end
             return
         cursor = self.last
         self.last = end
+        if elapsed is not None and abs((end-cursor).total_seconds()-elapsed) > 5:
+            # A wall-clock correction or unobserved suspend is not confirmed activity.
+            self.finish()
+            return
         if not self.active or self.session is None:
             return
         while cursor < end:
@@ -77,6 +87,8 @@ class Engine:
             # Split by elapsed time to next local clock hour; repeated DST hours aggregate.
             hour_end = cursor + timedelta(seconds=3600-local.minute*60-local.second-local.microsecond/1_000_000)
             boundary = min(end, midnight, hour_end)
+            if boundary <= cursor:
+                boundary = min(end, cursor + timedelta(minutes=1))
             seconds = (boundary - cursor).total_seconds()
             bucket = self.day(day)
             bucket["apps"][self.app] = bucket["apps"].get(self.app, 0.0) + seconds
@@ -93,12 +105,22 @@ class Engine:
             self.session["end"] = boundary.isoformat()
             cursor = boundary
 
-    def transition(self, now, state, attributes, allowed, mode, excluded=()):
-        self.settle(now)
+    def transition(self, now, state, attributes, allowed, mode, excluded=(), elapsed=None, pause_timeout=30):
+        self.settle(now, elapsed)
         key, name = app_identity(attributes)
+        # Reuse an unambiguous known ID when the source temporarily omits it.
+        if key.startswith("name:") and name != "Unknown app":
+            matches = [k for k,v in self.data["apps"].items() if k.startswith("id:") and v.casefold() == name.casefold()]
+            if len(matches) == 1:
+                key = matches[0]
         active = allowed and qualifies(state, attributes, mode, excluded)
         # Pause/buffer retains the session for the same app; other interruptions end it.
         suspended = allowed and state in ("paused", "buffering") and key == self.app
+        if suspended and not active:
+            self.suspended_since = self.suspended_since or now
+            suspended = (now-self.suspended_since).total_seconds() < pause_timeout*60
+        else:
+            self.suspended_since = None
         if self.session and (key != self.app or (not active and not suspended)):
             self.finish()
         if active:
@@ -115,19 +137,21 @@ class Engine:
         self.session = None
         self.app = None
         self.active = False
+        self.suspended_since = None
 
     def prune(self, now, retention_days=90):
         cutoff = now.astimezone(UTC) - timedelta(days=retention_days)
         self.data["sessions"] = [s for s in self.data["sessions"]
-                                 if datetime.fromisoformat(s["end"]) >= cutoff]
+                                 if datetime.fromisoformat(s["end"]) >= cutoff][-10000:]
 
     def storage(self):
         # A checkpoint records only observed time. A restart opens a new session.
         return {**self.data, "sessions": self.data["sessions"] +
                 ([self.session] if self.session and self.session["seconds"] > 0 else [])}
 
-    def report(self, now, days=366):
-        self.settle(now)
+    def report(self, now, days=366, *, settle=True, include_sessions=True):
+        if settle:
+            self.settle(now)
         today = now.astimezone(self.tz).date()
         local_now = now.astimezone(self.tz)
         recorded_since = datetime.fromisoformat(self.data["started"]).astimezone(self.tz)
@@ -185,6 +209,8 @@ class Engine:
         ):
             periods[label] = aggregate(start, today)
             periods[label].update(comparable(start, prior_start, prior_end))
+            if self.data.get("mixed_history"):
+                periods[label].update(comparison_seconds=None, previous_seconds=None)
         for length in (7, 30, 90, 365):
             periods[str(length)] = aggregate(today-timedelta(days=length-1), today)
         start = today-timedelta(days=days-1)
@@ -192,5 +218,7 @@ class Engine:
                    for d in (start+timedelta(days=i) for i in range(days))]
         return {"schema": 1, "started": self.data["started"], "recorded_since": recorded_day.isoformat(), "apps": self.data["apps"],
                 "periods": periods, "history": history,
-                "sessions": (self.data["sessions"] + ([self.session] if self.session else []))[-500:],
+                "sessions": (self.data["sessions"][-499:] + [self.session] if self.session else self.data["sessions"][-500:]) if include_sessions else [],
+                "mixed_history": self.data.get("mixed_history", False),
+                "mode_changes": self.data.get("mode_changes", []),
                 "active": self.active, "session_seconds": self.session["seconds"] if self.session else 0}

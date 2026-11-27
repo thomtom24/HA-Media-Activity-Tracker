@@ -32,21 +32,30 @@ class Settings:
 
     async def settings(self, user_input, step_id, defaults):
         old = defaults.get("conditions", [])
+        errors = {}
         if user_input is not None:
-            self.settings_data = dict(user_input)
-            self.pending = self.settings_data.pop("condition_entities", [])
-            self.conditions = []
-            self.old_conditions = {resolve(self.hass, c["entity"]): c for c in old}
-            return await self.async_step_condition()
+            selected = user_input.get("condition_entities", [])
+            registry = er.async_get(self.hass)
+            if any((item := registry.async_get(e)) is not None and item.platform == DOMAIN for e in selected):
+                errors["condition_entities"] = "circular_condition"
+            elif len(selected) > 20:
+                errors["condition_entities"] = "too_many_conditions"
+            else:
+                self.settings_data = dict(user_input)
+                self.pending = self.settings_data.pop("condition_entities", [])
+                self.conditions = []
+                self.old_conditions = {resolve(self.hass, c["entity"]): c for c in old}
+                return await self.async_step_condition()
         return self.async_show_form(step_id=step_id, data_schema=vol.Schema({
             vol.Required("mode", default=defaults.get("mode", "playing")): choice(MODES),
             vol.Required("logic", default=defaults.get("logic", "and")): choice(["and", "or"]),
             vol.Optional("condition_entities", default=[resolve(self.hass, c["entity"]) for c in old]): selector.EntitySelector(selector.EntitySelectorConfig(multiple=True)),
             vol.Optional("retention_days", default=defaults.get("retention_days", 90)): vol.All(vol.Coerce(int), vol.Range(min=1, max=3650)),
+            vol.Optional("pause_timeout", default=defaults.get("pause_timeout", 30)): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
             vol.Optional("excluded", default=defaults.get("excluded", "")): selector.TextSelector(),
             vol.Optional("aliases", default=defaults.get("aliases", "")): selector.TextSelector(),
             vol.Optional("app_sensors", default=defaults.get("app_sensors", "")): selector.TextSelector(),
-        }))
+        }), errors=errors)
 
     async def async_step_condition(self, user_input=None):
         if not self.pending:
@@ -55,7 +64,9 @@ class Settings:
         errors = {}
         if user_input is not None:
             op, value = user_input["operator"], user_input["value"]
-            if op in ("above", "below"):
+            if not isinstance(value, str) or not value.strip() or len(value) > 255:
+                errors["value"] = "invalid_value"
+            elif op in ("above", "below"):
                 try:
                     if not math.isfinite(float(value)):
                         raise ValueError
@@ -77,7 +88,10 @@ class ConfigFlow(Settings, config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
-        if user_input:
+        errors = {}
+        if user_input and (not user_input["name"].strip() or len(user_input["name"]) > 128):
+            errors["name"] = "invalid_name"
+        elif user_input:
             self._media_source_ref = entity_ref(self.hass, user_input["entity"])
             await self.async_set_unique_id(self._media_source_ref)
             self._abort_if_unique_id_configured()
@@ -86,7 +100,7 @@ class ConfigFlow(Settings, config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(step_id="user", data_schema=vol.Schema({
             vol.Required("name"): selector.TextSelector(),
             vol.Required("entity"): selector.EntitySelector(selector.EntitySelectorConfig(domain="media_player")),
-        }))
+        }), errors=errors)
 
     async def async_step_settings(self, user_input=None):
         return await self.settings(user_input, "settings", {})

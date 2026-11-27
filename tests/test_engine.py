@@ -82,3 +82,23 @@ class TestEngine(unittest.TestCase):
         self.e.prune(self.t+timedelta(days=3), 2)
         self.assertEqual(self.e.data["sessions"], [])
         self.assertEqual(self.e.data["days"]["2026-11-26"]["apps"]["id:11703"], 300)
+
+    def test_clock_jump_does_not_invent_activity(self):
+        self.change(0,"playing")
+        self.e.transition(self.t+timedelta(hours=3),"playing",self.a,True,"playing",elapsed=1)
+        self.assertEqual(self.e.report(self.t+timedelta(hours=3))["periods"]["month"]["seconds"],0)
+
+    def test_power_exclusion(self):
+        self.assertFalse(m.qualifies("on",self.a,"power",{"id:11703"}))
+
+    def test_paused_timeout(self):
+        self.change(0,"playing")
+        self.change(5,"paused")
+        self.change(40,"paused")
+        self.assertIsNone(self.e.session)
+
+    def test_id_fallback(self):
+        self.change(0,"playing")
+        self.change(1,"playing",{"app_name":"BBC iPlayer"})
+        self.change(2,"off")
+        self.assertEqual(self.e.data["days"]["2026-11-26"]["apps"],{"id:11703":120})

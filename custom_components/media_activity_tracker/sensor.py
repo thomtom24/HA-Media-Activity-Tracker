@@ -2,7 +2,7 @@
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.const import UnitOfTime
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.core import callback
 from homeassistant.util import slugify
 from .const import DOMAIN
@@ -48,6 +48,10 @@ class ActivitySensor(SensorEntity):
             self._attr_device_class = SensorDeviceClass.DURATION
             self._attr_native_unit_of_measurement = UnitOfTime.MINUTES
             self._attr_state_class = SensorStateClass.MEASUREMENT
+        if key in ("status",):
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        if self._attr_name.startswith("Playing time") and tracker.config.get("mode", "playing") != "playing":
+            self._attr_name = self._attr_name.replace("Playing time", {"app": "App activity time", "power": "Powered-on time"}.get(tracker.config.get("mode"), "Activity time"))
         self._attr_icon = "mdi:television-play"
 
     async def async_added_to_hass(self):
@@ -56,7 +60,7 @@ class ActivitySensor(SensorEntity):
 
     @callback
     def updated(self):
-        report = self.tracker.report(1)
+        report = self.tracker.snapshot or self.tracker.report(1, include_sessions=False)
         p = report["periods"].get(self.period, {})
         if self.metric == "average":
             value = p["seconds"] / max(1, p.get("observed_days", p["days"])) / 60
@@ -75,7 +79,9 @@ class ActivitySensor(SensorEntity):
         if self.key == "status":
             self._attr_extra_state_attributes = {"tracker_entry_id": self.tracker.entry.entry_id,
                 "source_entity": report["source"], "source_state": report["state"], "tracking_mode": report["mode"],
-                "condition_results": report["condition_results"], "session_retention_days": report["retention_days"]}
+                "condition_results": report["condition_results"], "session_retention_days": report["retention_days"],
+                "storage_error": report["storage_error"], "last_saved": report["last_saved"],
+                "mixed_history": report["mixed_history"]}
         self.async_write_ha_state()
 
 class AppSensor(ActivitySensor):
@@ -88,7 +94,7 @@ class AppSensor(ActivitySensor):
 
     @callback
     def updated(self):
-        report = self.tracker.report(1)
+        report = self.tracker.snapshot or self.tracker.report(1, include_sessions=False)
         seconds = sum(v for k, v in report["periods"][self.period]["apps"].items()
                       if self.app.casefold() in (k.casefold(), report["apps"].get(k, "").casefold()))
         self._attr_native_value = round(seconds / 60, 2)

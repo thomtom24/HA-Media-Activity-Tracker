@@ -5,6 +5,7 @@ from homeassistant.components import websocket_api
 from homeassistant.auth.permissions.const import POLICY_READ
 from homeassistant.core import callback
 from homeassistant.helpers.storage import Store
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import config_validation as cv
 from .const import DOMAIN
 from .tracker import Tracker
@@ -37,6 +38,10 @@ def websocket_report(hass, connection, msg):
     if not connection.user.permissions.check_entity(tracker.source, POLICY_READ):
         connection.send_error(msg["id"], "unauthorized", "Source entity access denied")
         return
+    status = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, f"{msg[\"entry_id\"]}_status")
+    if not status or not connection.user.permissions.check_entity(status, POLICY_READ):
+        connection.send_error(msg["id"], "unauthorized", "Tracker entity access denied")
+        return
     connection.send_result(msg["id"], tracker.report(msg["days"]))
 
 
@@ -45,7 +50,12 @@ async def async_setup_entry(hass, entry):
     await tracker.start()
     entry.runtime_data = tracker
     hass.data[DOMAIN][entry.entry_id] = tracker
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+    try:
+        await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+    except Exception:
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        await tracker.stop()
+        raise
     return True
 
 

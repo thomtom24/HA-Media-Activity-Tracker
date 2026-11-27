@@ -19,7 +19,8 @@
           "excluded": "Excluded apps (optional)",
           "aliases": "Application aliases (optional, id:12=Netflix)",
           "app_sensors": "Optional app sensors (comma-separated names or id: identifiers)",
-          "retention_days": "Detailed session retention (days, 1–3650)"
+          "retention_days": "Detailed session retention (days, 1–3650)",
+          "pause_timeout": "End paused session after (minutes, 1–1440)"
         }
       },
       "condition": {
@@ -32,7 +33,11 @@
       }
     },
     "error": {
-      "invalid_number": "Enter a finite number."
+      "invalid_number": "Enter a finite number.",
+      "circular_condition": "Tracker sensors cannot be used as tracking conditions.",
+      "too_many_conditions": "Choose at most 20 conditions.",
+      "invalid_value": "Enter a non-empty value up to 255 characters.",
+      "invalid_name": "Enter a name up to 128 characters."
     },
     "abort": {
       "already_configured": "This media player is already tracked."
@@ -50,7 +55,8 @@
           "excluded": "Excluded apps (optional)",
           "aliases": "Application aliases (optional, id:12=Netflix)",
           "app_sensors": "Optional app sensors (comma-separated names or id: identifiers)",
-          "retention_days": "Detailed session retention (days, 1–3650)"
+          "retention_days": "Detailed session retention (days, 1–3650)",
+          "pause_timeout": "End paused session after (minutes, 1–1440)"
         }
       },
       "condition": {
@@ -63,7 +69,11 @@
       }
     },
     "error": {
-      "invalid_number": "Enter a finite number."
+      "invalid_number": "Enter a finite number.",
+      "circular_condition": "Tracker sensors cannot be used as tracking conditions.",
+      "too_many_conditions": "Choose at most 20 conditions.",
+      "invalid_value": "Enter a non-empty value up to 255 characters.",
+      "invalid_name": "Enter a name up to 128 characters."
     }
   }
 }
