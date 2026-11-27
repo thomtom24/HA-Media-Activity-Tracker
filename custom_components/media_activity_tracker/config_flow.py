@@ -23,6 +23,19 @@ def resolve(hass, ref):
     return f"sensor.media_activity_missing_{ref}"
 
 
+def whole_number(value):
+    """Reject fractional and boolean input without truncation."""
+    if isinstance(value, bool):
+        raise vol.Invalid("Expected a whole number")
+    try:
+        integer = int(value)
+        if float(value) != integer:
+            raise ValueError
+        return integer
+    except (ValueError, TypeError, OverflowError) as err:
+        raise vol.Invalid("Expected a whole number") from err
+
+
 def choice(values):
     return selector.SelectSelector(selector.SelectSelectorConfig(options=values, mode=selector.SelectSelectorMode.DROPDOWN))
 
@@ -52,8 +65,8 @@ class Settings:
             vol.Required("mode", default=defaults.get("mode", "playing")): choice(MODES),
             vol.Required("logic", default=defaults.get("logic", "and")): choice(["and", "or"]),
             vol.Optional("condition_entities", default=[resolve(self.hass, c["entity"]) for c in old]): selector.EntitySelector(selector.EntitySelectorConfig(multiple=True)),
-            vol.Optional("retention_days", default=defaults.get("retention_days", 90)): vol.All(vol.Coerce(int), vol.Range(min=1, max=3650)),
-            vol.Optional("pause_timeout", default=defaults.get("pause_timeout", 30)): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
+            vol.Optional("retention_days", default=defaults.get("retention_days", 90)): vol.All(whole_number, vol.Range(min=1, max=3650)),
+            vol.Optional("pause_timeout", default=defaults.get("pause_timeout", 30)): vol.All(whole_number, vol.Range(min=1, max=1440)),
             vol.Optional("excluded", default=app_list(defaults.get("excluded", []))): selector.TextSelector(selector.TextSelectorConfig(multiple=True)),
             vol.Optional("aliases", default=alias_rows(defaults.get("aliases", []))): selector.ObjectSelector(selector.ObjectSelectorConfig(multiple=True, label_field="key", fields={"key": {"label": "App name or ID", "selector": selector.TextSelector(), "required": True}, "label": {"label": "Display name", "selector": selector.TextSelector(), "required": True}})),
             vol.Optional("app_sensors", default=app_list(defaults.get("app_sensors", []))): selector.TextSelector(selector.TextSelectorConfig(multiple=True)),

@@ -77,6 +77,8 @@ class Tracker:
             self.engine.data["mixed_history"] = True
             self.engine.data.setdefault("mode_changes", []).append({"at": now.isoformat(), "mode": mode})
         self.engine.data["last_mode"] = mode
+        if self.engine.data.get("mixed_history") and not (self.engine.data.get("mode_changes") or self.engine.data.get("source_changes")):
+            self.engine.data.setdefault("comparison_reset", now.isoformat())
         previous_source = self.engine.data.get("last_source")
         if previous_source is not None and previous_source != self.config["source"]:
             self.engine.data["mixed_history"] = True
@@ -151,7 +153,13 @@ class Tracker:
         if elapsed > 120:
             # Do not infer playback across a long unobserved gap.
             elapsed = 0
-        observed = self.source_state not in ("unknown", "unavailable") and not self.invalid_condition and all(c["available"] for c in self.condition_results)
+        # A known false AND / true OR determines the gate despite missing inputs.
+        gate_known = all(c["available"] for c in self.condition_results)
+        if self.config.get("logic") == "or":
+            gate_known |= any(c["matched"] for c in self.condition_results if c["available"])
+        else:
+            gate_known |= any(not c["matched"] for c in self.condition_results if c["available"])
+        observed = self.source_state not in ("unknown", "unavailable") and not self.invalid_condition and gate_known
         self.engine.transition(now, self.source_state, attributes, allowed, mode, excluded,
                                elapsed=elapsed, pause_timeout=self.config.get("pause_timeout", 30), observed=observed)
         self.dirty |= previous_active or self.engine.active or previous_app != self.engine.app
@@ -205,6 +213,8 @@ class Tracker:
                           for key, name in result["apps"].items()}
         source = self.observed_states.get(self.source)
         key, name = app_identity(source.attributes if source else {})
+        if self.engine.app and self.engine.app in self.engine.data["apps"]:
+            key, name = self.engine.app, self.engine.data["apps"][self.engine.app]
         app = aliases.get(key.casefold(), aliases.get(name.casefold(), name))
         result = {**result, "name": self.entry.title, "source": self.source,
                 "state": self.source_state, "app": app, "reason": self.reason,
@@ -216,7 +226,8 @@ class Tracker:
         if include_sessions:
             if len(self.report_cache) >= 3:
                 self.report_cache.clear()
-            self.report_cache[days] = result
+            self.report_cache[days] = deepcopy(result)
+            return self.report_cache[days]
         return result
 
     async def shutdown(self, _event):
