@@ -8,7 +8,7 @@ from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.components.lovelace.resources import ResourceStorageCollection
 
 _LOGGER = logging.getLogger(__name__)
-CARD_VERSION = "0.2.0"
+CARD_VERSION = "0.2.1"
 REGISTERED = "media_activity_tracker.card_registered"
 CARD_FILENAME = "ha-media-activity-card.js"
 CARD_PATH = f"/media_activity_tracker/{CARD_FILENAME}"

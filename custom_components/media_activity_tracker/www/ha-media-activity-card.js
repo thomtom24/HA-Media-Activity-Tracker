@@ -1,4 +1,4 @@
-/* Media Activity Card 0.2.0 — MIT */
+/* Media Activity Card 0.2.1 — MIT */
 const defaults={period:"day",trend:"90",live:true,summary:true,apps:true,recent:true,trends:true,insights:true,heatmap:true,export:true,target:0};
 const colors=["#5b8def","#e36272","#35ae99","#e8a340","#a180dc","#45a5c7","#d27fb4","#8195a5"];
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));

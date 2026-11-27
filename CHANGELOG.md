@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.1
+- Classify Media Activity Tracker as a service so it appears in the main Integrations list instead of Helpers.
+- Keep existing configuration entries, history, sensor identifiers and card settings unchanged.
+- Synchronise the bundled card version and update installation instructions.
+
 ## v0.2.0
 - Fix daily averages to exclude pre-installation dates; compare equivalent completed days and clock hours.
 - Add configurable detailed session retention, anonymised condition diagnostics and clearer tracking states.
