@@ -56,3 +56,16 @@ Run `node --check custom_components/media_activity_tracker/www/ha-media-activity
 - **Card unavailable:** confirm only the bundled resource is registered, restart HA, then refresh the browser. Check HA logs for card resource registration warnings. Backend tracking continues if the optional card cannot register. Tracking status states now distinguish paused, buffering, source_off, source_unavailable and app_excluded; existing automations that test the previous generic source_not_active state may need updating.
 - **Multiple trackers:** add one integration entry per media player; the shared module is registered once and each card selects its own status sensor.
 - **Retention:** change detailed session retention in integration options. Daily and application aggregates are retained; pruned session details cannot be restored without a backup.
+
+## AI-assisted development disclaimer
+
+This project was produced using ChatGPT in response to human prompts and direction. It was not created solely by a human developer. The project owner provides requirements, reviews changes and participates in testing, while ChatGPT generates and assists with implementation, documentation and automated tests.
+
+AI-generated code may contain errors, security issues or unexpected behaviour. The integration is provided as-is, without guarantees of reliability or suitability for any particular purpose. Please review and test it in your own environment before relying on it.
+
+## About and support
+
+- Website: [www.tombale.me](https://www.tombale.me)
+- If you find this project useful and would like to support its development, you can [buy me a beer](https://buymeacoffee.com/tombale).
+
+Support is entirely optional.
