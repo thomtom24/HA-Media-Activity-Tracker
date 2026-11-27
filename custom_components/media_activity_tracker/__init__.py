@@ -5,6 +5,7 @@ from homeassistant.auth.permissions.const import POLICY_READ
 from homeassistant.core import callback
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers import config_validation as cv
+from .card_resource import async_register_card
 from .const import DOMAIN
 from .tracker import Tracker
 
@@ -14,6 +15,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 async def async_setup(hass, config):
     hass.data.setdefault(DOMAIN, {})
     websocket_api.async_register_command(hass, websocket_report)
+    await async_register_card(hass)
     return True
 
 
