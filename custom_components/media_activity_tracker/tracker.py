@@ -7,7 +7,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 from .config_flow import resolve
-from .engine import Engine, condition_matches, app_identity
+from .engine import Engine, HOME, condition_matches, app_identity
 
 
 class Tracker:
@@ -89,7 +89,10 @@ class Tracker:
             self.reason = "source_off"
         elif self.source_state in ("paused", "buffering") and self.config.get("mode", "playing") == "playing":
             self.reason = self.source_state
-        elif self.source_state == "playing":
+        elif self.config.get("mode", "playing") != "power" and (
+            app_identity(attributes)[1].casefold() in HOME | excluded
+            or app_identity(attributes)[0].casefold() in excluded
+        ):
             self.reason = "app_excluded"
         else:
             self.reason = "source_not_active"

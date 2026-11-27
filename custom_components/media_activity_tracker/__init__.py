@@ -1,13 +1,15 @@
 """Media Activity Tracker."""
+import logging
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.auth.permissions.const import POLICY_READ
 from homeassistant.core import callback
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers import config_validation as cv
-from .card_resource import async_register_card
 from .const import DOMAIN
 from .tracker import Tracker
+
+_LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -15,7 +17,11 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 async def async_setup(hass, config):
     hass.data.setdefault(DOMAIN, {})
     websocket_api.async_register_command(hass, websocket_report)
-    await async_register_card(hass)
+    try:
+        from .card_resource import async_register_card
+        await async_register_card(hass)
+    except Exception:
+        _LOGGER.exception("Optional dashboard setup failed; media tracking remains available")
     return True
 
 

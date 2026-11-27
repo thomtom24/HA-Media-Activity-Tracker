@@ -39,3 +39,21 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         ):
             await flow.async_step_condition({"operator": "equals", "value": "on"})
         create.assert_called_once_with(title="Test TV", data={"source": "registry-id", "mode": "playing", "logic": "and", "conditions": [{"entity": "condition-id", "operator": "equals", "value": "on"}]})
+
+    async def test_session_retention_form(self):
+        flow = ConfigFlow()
+        flow.context = {"source": "user"}
+        flow.hass = MagicMock()
+        flow.flow_id = "test-flow"
+        flow._media_source_ref = "registry-id"
+        flow._tracker_name = "Test TV"
+        form = await flow.async_step_settings()
+        data = {"mode": "playing", "logic": "and", "retention_days": 365}
+        self.assertEqual(form["data_schema"](data)["retention_days"], 365)
+        import voluptuous as vol
+        for invalid in (0, 3651):
+            with self.assertRaises(vol.Invalid):
+                form["data_schema"]({**data, "retention_days": invalid})
+        with patch.object(flow, "async_create_entry", return_value={"type": "create_entry"}) as create:
+            await flow.async_step_settings(data)
+        self.assertEqual(create.call_args.kwargs["data"]["retention_days"], 365)

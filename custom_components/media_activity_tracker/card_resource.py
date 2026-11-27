@@ -46,7 +46,7 @@ async def async_register_card(hass):
         return
     try:
         await async_ensure_resource(resources)
-    except (HomeAssistantError, OSError, RuntimeError, ValueError):
+    except Exception:
         _LOGGER.exception("Unable to register Media Activity Card; add %s manually", CARD_URL)
 
 
